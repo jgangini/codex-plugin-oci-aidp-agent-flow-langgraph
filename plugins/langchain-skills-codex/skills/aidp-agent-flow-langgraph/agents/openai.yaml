@@ -1,0 +1,7 @@
+interface:
+  icon_small: "../../assets/icon.svg"
+  icon_large: "../../assets/logo.png"
+  brand_color: "#C74634"
+  display_name: "AIDP Agent Flow LangGraph"
+  short_description: "Desarrollo de agentes AIDP y aceptación en TEST"
+  default_prompt: "Usa $aidp-agent-flow-langgraph para desarrollar mi agente AIDP con operaciones CLI verificadas y cerrar TEST antes de publicar en Agent Hub."

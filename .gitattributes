@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.ps1 text eol=lf
+*.svg text eol=lf
+*.png binary
+# Preserve the exact versioned engine bytes used by campaign identity hashes.
+plugins/langchain-skills-codex/scripts/aidp_agent_flow/** -text whitespace=trailing-space,space-before-tab,cr-at-eol

@@ -1,0 +1,30 @@
+[
+  {
+    "path": "skills/langchain-dependencies/SKILL.md",
+    "sha256": "e099bf710d55bac77bdb3aa3e0b76e3da249f0ba910f37ba6a87c524d14dd8bf"
+  },
+  {
+    "path": "skills/langchain-fundamentals/SKILL.md",
+    "sha256": "00dc50a19d6eec308e3c4a5b8ca237fdddeb00195e7e29d009049f5d0566f5c2"
+  },
+  {
+    "path": "skills/langgraph-fundamentals/SKILL.md",
+    "sha256": "193bea142c9df04abc44917fb96c0be53ec9b5c77f56670004d3c03c117fb990"
+  },
+  {
+    "path": "skills/langgraph-fundamentals/references/python.md",
+    "sha256": "3d30871a6463f955452fdebe607248c39b6806cf07c0fe655e3783b48acc6d91"
+  },
+  {
+    "path": "skills/langgraph-fundamentals/references/typescript.md",
+    "sha256": "8cf8577265a75a1e46a5e1dfc7599c63efb60059591593dbb92dbd51acd5d22a"
+  },
+  {
+    "path": "skills/langgraph-human-in-the-loop/SKILL.md",
+    "sha256": "ce56e8ce58548dd1d7cb0d3e524cf546cef0c712e3c35d63fdd4ae354b40d3c1"
+  },
+  {
+    "path": "skills/langgraph-persistence/SKILL.md",
+    "sha256": "0a9a4f36e6d7895a273ce0882655e57023d2d992d4fde8e033e2936ac1df789e"
+  }
+]

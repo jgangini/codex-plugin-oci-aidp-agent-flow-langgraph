@@ -1,0 +1,34 @@
+{
+  "name": "langchain-skills-codex",
+  "version": "0.4.8",
+  "description": "Local-first AIDP LangGraph agent development with guarded CLI TEST, deployment, Registry, model inventory and Credential Store workflows.",
+  "author": {
+    "name": "Joel Gangini (AIDP workflow and Codex adaptation); LangChain, Inc. (upstream skills)"
+  },
+  "homepage": "https://github.com/jgangini/codex-plugin-oci-aidp-agent-flow-langgraph",
+  "license": "MIT",
+  "skills": [
+    "./skills/aidp-agent-bootstrap/",
+    "./skills/aidp-agent-flow-langgraph/",
+    "./skills/aidp-langgraph-test/",
+    "./skills/aidp-runtime-credentials/",
+    "./skills/langchain-dependencies/",
+    "./skills/langchain-fundamentals/",
+    "./skills/langgraph-fundamentals/",
+    "./skills/langgraph-human-in-the-loop/",
+    "./skills/langgraph-persistence/"
+  ],
+  "interface": {
+    "displayName": "AIDP Agent Flow LangGraph",
+    "shortDescription": "Develop AIDP agents locally, evaluate and bind credentials.",
+    "longDescription": "Local uv bootstrap, node/graph evaluation, recorded MCP/RAG/table replay, regional model inventory, Credential Store setup and scoped CLI package/TEST/publication/Registry workflows. Five pinned upstream LangChain skills remain unchanged. Native contracts are target-verified GA/legacy integrations. Installing the plugin performs no cloud writes or tracing setup. Required TEST acceptance precedes authorized publication; Agent Hub client acceptance is separate.",
+    "defaultPrompt": [
+      "Use $aidp-agent-bootstrap to prepare a local AIDP LangGraph project using uv and existing protected OCI config.",
+      "Use $aidp-agent-flow-langgraph to develop locally and close native TEST before authorized publication.",
+      "Use $aidp-langgraph-test to isolate a failing node or path with frozen evidence and focused tests."
+    ],
+    "brandColor": "#C74634",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.png"
+  }
+}

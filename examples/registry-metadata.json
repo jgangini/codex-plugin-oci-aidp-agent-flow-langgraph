@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "display_name": "Asistente de soporte de ejemplo",
+  "description": "Responde los casos de soporte revisados para este proyecto.",
+  "tags": ["soporte"],
+  "labels": {},
+  "registry_metadata": {
+    "schema": "oasf.record@0.7.0",
+    "record": {"authors": [], "domains": [], "skills": [], "locators": []}
+  },
+  "blueprint": {}
+}

@@ -1,0 +1,7 @@
+interface:
+  display_name: "AIDP Agent Credential Store"
+  short_description: "Plan and ensure protected AIDP agent credentials"
+  icon_small: "../../assets/icon.svg"
+  icon_large: "../../assets/logo.png"
+  brand_color: "#C74634"
+  default_prompt: "Use $aidp-runtime-credentials to inspect the selected AIDP Credential Store and plan safe credential reuse or creation for my agent."

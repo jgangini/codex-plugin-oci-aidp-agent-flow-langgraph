@@ -1,0 +1,16 @@
+from langgraph.graph import END, START, StateGraph
+from .state import State
+
+PROJECT_NAME = @@NAME_JSON@@
+SYSTEM_PROMPT = "Answer the user's question from supplied evidence. Ask for material missing information. Do not claim to have called a tool or changed external data."
+
+
+def build_graph(runtime):
+    async def respond(state):
+        return {"answer": await runtime["model"].complete(SYSTEM_PROMPT, state["question"])}
+
+    graph = StateGraph(State)
+    graph.add_node("respond", respond)
+    graph.add_edge(START, "respond")
+    graph.add_edge("respond", END)
+    return graph.compile(checkpointer=runtime.get("checkpointer"))

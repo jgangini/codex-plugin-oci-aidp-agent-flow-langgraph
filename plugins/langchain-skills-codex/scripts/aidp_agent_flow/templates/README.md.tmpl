@@ -1,0 +1,41 @@
+# Local AIDP agent development
+
+This is a minimal graph template, not a completed business agent. Add the
+domain behavior and reviewed acceptance cases before claiming usefulness.
+
+1. Run `aidp-agent-flow --project . doctor`.
+2. Run `aidp-agent-flow --project . test --cases tests/cases.json --case graph-fixture --hypothesis "Verify the fixture response"`.
+3. Configure the selected nonsecret model fields in `aidp-agent.toml`; reference
+   the existing protected OCI config. Never copy keys into this repository.
+4. Create separate real-model cases with semantic criteria. Use `test --real`
+   only for scoped inference; fixture cases assert mechanics, not model quality.
+5. Use `package check` to inspect the entry-folder manifest. Configure the native
+   runtime binding and verify native dependencies, credentials, memory, output
+   protocol and actual served revision in TEST before authorized publication.
+
+Both environments use `agent/core/graph.py`. The native adapter demonstrates
+the generic OCI chat family and the existing SECRET_TOKEN runtime-credential
+layout. It needs target verification; it does not replace an existing project's
+GuardedChatOCIGenAI, CustomRemoteSigner, guardrails or model-family contract.
+Do not use this starter to silently migrate an existing agent's auth behavior.
+
+Local checkpointers are in memory per experiment. They do not certify AIDP
+session persistence. `.aidp-local` stores private local test artifacts, not
+business observations. The runner is not a sandbox for untrusted project code.
+
+`node-progress.json` maps this starter's `respond` node to two local mechanics
+checks and one pending native TEST review. Replace that example with the actual
+node inventory and functional rubric as the graph develops. `test` refreshes the
+table automatically; `aidp-agent-flow --project . progress report` rebuilds it
+without executing another test. Read `.aidp-local/progress/table.md` for local,
+TEST and total validation percentages. A fixture pass is not native acceptance.
+
+CLI initialization activates `tests/campaign-policy.json` as `test-campaign.json`:
+20 fixture attempts, one identical trial and no paid calls. These are editable
+admission limits, not a quality target or spending authorization. If using the
+Python initializer directly, install the policy with `campaign init --definition
+tests/campaign-policy.json`. Configure authorized call/cost limits before real
+inference or native invocation. Use `campaign status` to see reservations and
+unresolved work; never delete a ledger or repeat a timed-out paid operation to
+make progress appear green. Review integrated acceptance using node `__agent__`
+before publication; node-only coverage cannot close the whole agent.

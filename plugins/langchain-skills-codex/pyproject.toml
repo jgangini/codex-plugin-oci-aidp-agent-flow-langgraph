@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aidp-agent-flow"
+version = "0.4.8"
+description = "Local-first development helpers for Oracle AIDP LangGraph agents"
+requires-python = ">=3.11"
+dependencies = ["oci>=2.170,<3", "requests>=2.32,<3"]
+
+[dependency-groups]
+dev = ["langgraph==1.0.1", "pyyaml>=6,<7"]
+
+[project.scripts]
+aidp-agent-flow = "aidp_agent_flow.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["scripts"]
+include = ["aidp_agent_flow*"]
+
+[tool.setuptools.package-data]
+aidp_agent_flow = ["templates/*", "templates/**/*", "templates/**/**/*", "templates/.gitignore.tmpl"]

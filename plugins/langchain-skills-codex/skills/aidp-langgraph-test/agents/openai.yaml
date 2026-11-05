@@ -1,0 +1,9 @@
+interface:
+  icon_small: "../../assets/icon.svg"
+  icon_large: "../../assets/logo.png"
+  brand_color: "#C74634"
+  display_name: "AIDP Agent Flow Test"
+  short_description: "Evaluación por nodos y aceptación en AIDP TEST"
+  default_prompt: "Usa $aidp-langgraph-test para ajustar mi agente AIDP con pruebas focalizadas, evaluación de nodos y aceptación nativa antes de Agent Hub."
+policy:
+  allow_implicit_invocation: false
