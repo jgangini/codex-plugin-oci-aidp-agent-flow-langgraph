@@ -2,9 +2,29 @@
 
 ## 1. Entorno local
 
-Para comenzar instala Codex y habilita el plugin. En el [tutorial](guia-de-uso.md) pides a Codex que compruebe y prepare el entorno mediante bootstrap: Git, `uv`, Python 3.11 o superior y las dependencias del proyecto. Si algún requisito no puede instalarse dentro del acceso disponible, Codex debe indicar la intervención necesaria. Los comandos de la referencia técnica usan PowerShell. En Linux/macOS cambia `Scripts/python.exe` por `bin/python` y `Scripts/aidp-agent-flow.exe` por `bin/aidp-agent-flow`.
+Para comenzar instala Codex, habilita el plugin y prepara las skills oficiales indicadas a continuación. En el [tutorial](guia-de-uso.md) pides a Codex que compruebe y prepare el entorno mediante bootstrap: Git, `uv`, Python 3.11 o superior y las dependencias del proyecto. Si algún requisito no puede instalarse dentro del acceso disponible, Codex debe indicar la intervención necesaria. Los comandos de la referencia técnica usan PowerShell. En Linux/macOS cambia `Scripts/python.exe` por `bin/python` y `Scripts/aidp-agent-flow.exe` por `bin/aidp-agent-flow`.
 
 El entorno del CLI es independiente del entorno del agente. Fija sus versiones; no reemplaces un ejecutable compartido mientras otra campaña lo utiliza. La plantilla usa por defecto el perfil `aidp-managed-1.2.4`; el perfil histórico de LangGraph 1.0.1 se selecciona explícitamente. Comprueba el runtime observado de tu AIDP antes de aceptar compatibilidad: el perfil no constituye certificación de Oracle.
+
+### Skills oficiales de LangChain
+
+El plugin distribuye cuatro skills propias de AIDP. Las instrucciones generales del framework proceden de [LangChain Skills](https://github.com/langchain-ai/langchain-skills) y se instalan por separado. Instalar skills no instala librerías Python ni configura modelos.
+
+Puedes pedirlo en lenguaje natural, sin ejecutar comandos:
+
+```text
+Instala en Codex, desde el repositorio oficial langchain-ai/langchain-skills,
+las skills langchain-dependencies, langchain-fundamentals,
+langgraph-fundamentals, langgraph-persistence y langgraph-human-in-the-loop.
+Reutiliza las que ya estén instaladas desde esa fuente y evita duplicados.
+Comprueba cuáles estarán disponibles al iniciar el siguiente chat.
+```
+
+Para una instalación manual, la [guía oficial](https://github.com/langchain-ai/langchain-skills#installation) documenta el instalador de skills de Codex y la alternativa con `npx skills`. Usa la vía admitida por tu entorno; no ejecutes el script `install.sh` como si fuera un instalador de Codex.
+
+El bootstrap aplica la [comprobación de skills](../plugins/langchain-skills-codex/skills/aidp-agent-bootstrap/references/framework-skills.md): lee el inventario de la sesión y carga sólo lo pertinente. Fundamentos de LangGraph se utiliza al crear el grafo; dependencias al preparar el entorno; fundamentos de LangChain cuando se usan sus agentes o herramientas; persistencia e intervención humana sólo cuando el caso las requiere. Si falta alguna necesaria, lo comunica y prepara su instalación dentro de la autorización de setup. Puede requerirse un chat nuevo para que Codex la descubra.
+
+Esta comprobación la ejecuta Codex siguiendo la skill de bootstrap; **no es un detector añadido a `doctor`**. La revisión de las skills, el entorno Python y el runtime AIDP son comprobaciones distintas. Conserva la revisión conocida de las skills durante una campaña y verifica APIs y dependencias frente al destino real: las instrucciones oficiales pueden evolucionar antes que el runtime gestionado.
 
 ## 2. Carpeta `.oci` del proyecto
 

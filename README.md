@@ -1,6 +1,6 @@
 # OCI AIDP Agent Flow LangGraph para Codex
 
-Plugin **0.4.45** para crear, auditar y mejorar agentes LangGraph destinados a Oracle AI Data Platform (AIDP). Incluye skills para Codex y un CLI Python para preparar proyectos, probar nodos y recorridos, registrar evidencia y operar el ciclo nativo autorizado.
+Plugin **0.4.46** para crear, auditar y mejorar agentes LangGraph destinados a Oracle AI Data Platform (AIDP). Incluye skills para Codex y un CLI Python para preparar proyectos, probar nodos y recorridos, registrar evidencia y operar el ciclo nativo autorizado.
 
 **La forma de trabajo es:** definir el resultado esperado → desarrollar y probar localmente → aceptar la revisión en AIDP TEST → publicar esa revisión → registrar y comprobar el acceso en Agent Hub.
 
@@ -44,7 +44,7 @@ codex plugin marketplace add jgangini/codex-plugin-oci-aidp-agent-flow-langgraph
 Para fijar la versión publicada:
 
 ```powershell
-codex plugin marketplace add jgangini/codex-plugin-oci-aidp-agent-flow-langgraph@v0.4.45
+codex plugin marketplace add jgangini/codex-plugin-oci-aidp-agent-flow-langgraph@v0.4.46
 ```
 
 En Codex abre la lista de plugins, instala **AIDP Agent Flow LangGraph** y comienza un chat nuevo para cargar sus skills. Si ya usas una instalación local del mismo plugin, elige una sola procedencia para evitar instrucciones duplicadas. No cambies el motor de una campaña activa sin revisar su adopción.
@@ -59,7 +59,7 @@ Una vez habilitado el plugin, pide a Codex que prepare el entorno con su bootstr
 
 ## Qué necesitas
 
-- Codex con plugins, Git, `uv` y Python 3.11 o superior.
+- Codex con el plugin y las [skills oficiales de LangChain](docs/prerrequisitos.md#skills-oficiales-de-langchain) disponibles, Git, `uv` y Python 3.11 o superior.
 - Para pruebas simuladas locales: **no necesitas cuenta OCI ni claves**.
 - Para modelos reales y operaciones AIDP: una identidad OCI autorizada, recursos de destino y la carpeta privada del proyecto **`.oci/` con `config` y `key.pem`**. La clave pública correspondiente debe estar registrada en OCI.
 - Para TEST nativo: workspace, AI Compute compatible y permisos para el agente seleccionado. El plugin no crea toda esa infraestructura al instalarse.
@@ -74,7 +74,8 @@ Nunca subas `.oci`, claves ni recibos privados a GitHub. Este repositorio contie
 | `aidp-agent-flow-langgraph` | Diseñar, implementar y ajustar el agente |
 | `aidp-langgraph-test` | AIDP Agent Flow Test: aislar fallos y probar nodos, recorridos y comportamiento |
 | `aidp-runtime-credentials` | Inspeccionar y preparar Credential Store dentro del alcance autorizado |
-| Cinco skills upstream de LangChain/LangGraph | Dependencias, fundamentos, intervención humana y persistencia |
+
+Las skills oficiales de LangChain/LangGraph se instalan por separado. El bootstrap comprueba cuáles necesita el caso; consulta los [prerrequisitos](docs/prerrequisitos.md#skills-oficiales-de-langchain).
 
 ## Qué demuestra una prueba
 
@@ -84,4 +85,4 @@ El informe por nodos conserva criterios, evidencia, revisión y exclusiones. El 
 
 ## Licencia y atribución
 
-[MIT](LICENSE), con los avisos de LangChain, Inc. y Joel Gangini conservados. Es una adaptación independiente: no es un plugin oficial ni una certificación de Oracle o LangChain. [Procedencia y marcas](docs/procedencia.md).
+[MIT](LICENSE), con los avisos de LangChain, Inc. y Joel Gangini conservados. Es una adaptación independiente: no es un plugin oficial ni una certificación de Oracle o LangChain. [Avisos de terceros](THIRD_PARTY_NOTICES.md).

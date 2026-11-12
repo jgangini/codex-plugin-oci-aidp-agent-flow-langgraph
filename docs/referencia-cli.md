@@ -8,12 +8,12 @@ Consulta el [flujo de desarrollo](flujo-de-desarrollo.md) para entender las deci
 
 ## 1. Instalar un motor versionado
 
-Tras instalar las skills en Codex, clona el repositorio para instalar su CLI. Ejemplo PowerShell desde tu carpeta de desarrollo:
+Tras instalar el plugin y las [skills oficiales por separado](prerrequisitos.md#skills-oficiales-de-langchain), clona el repositorio para instalar su CLI. Ejemplo PowerShell desde tu carpeta de desarrollo:
 
 ```powershell
 git clone https://github.com/jgangini/codex-plugin-oci-aidp-agent-flow-langgraph.git
 cd codex-plugin-oci-aidp-agent-flow-langgraph
-git checkout v0.4.45
+git checkout v0.4.46
 $Repo = (Get-Location).Path
 $Motor = Join-Path $HOME '.codex/runtimes/aidp-agent-flow/0.4.31'
 uv venv $Motor --python 3.11

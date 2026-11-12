@@ -7,8 +7,9 @@ Puedes copiar estos prompts durante una demostración. Usaremos un asistente de 
 ## Antes de comenzar
 
 1. Instala el plugin siguiendo la [instalación del README](../README.md#instalación-en-codex).
-2. Crea una carpeta para tu agente y ábrela como proyecto en Codex. Empieza un chat nuevo y comprueba que el plugin esté habilitado. Puedes seleccionarlo desde el selector de plugins y escribir su nombre en tu mensaje.
-3. Para comenzar no necesitas OCI: se desarrolla y prueba con datos ficticios. Para modelos reales y AIDP necesitarás recursos, permisos y presupuesto.
+2. Instala las [skills oficiales de LangChain](prerrequisitos.md#skills-oficiales-de-langchain), o reutiliza tu instalación si ya está disponible en Codex. No vienen incluidas en el plugin AIDP.
+3. Crea una carpeta para tu agente y ábrela como proyecto en Codex. Empieza un chat nuevo y comprueba que el plugin esté habilitado. Puedes seleccionarlo desde el selector de plugins y escribir su nombre en tu mensaje.
+4. Para comenzar no necesitas OCI: se desarrolla y prueba con datos ficticios. Para modelos reales y AIDP necesitarás recursos, permisos y presupuesto.
 
 El bootstrap ayuda a preparar o reparar el entorno local y sus dependencias. Pídele que lo ejecute: instalar el plugin o cargar una skill no inicia esa preparación automáticamente. Si falta un programa o permiso que Codex no puede preparar, debe indicarlo. El bootstrap no crea por sí solo una plataforma AIDP ni permisos en Oracle.
 
@@ -24,6 +25,9 @@ Quiero que converse en español y ayude a consultar pedidos, explicar la políti
 de devoluciones y decidir cuándo debe intervenir una persona.
 
 Prepara el entorno local y las dependencias necesarias con el bootstrap.
+Comprueba las skills oficiales de LangChain disponibles y usa las pertinentes
+para diseñar el agente. Si falta alguna necesaria, indica cuál y cómo instalarla
+desde la fuente oficial; no dupliques una instalación existente.
 Comprueba qué está instalado y reutiliza lo que ya funcione. Si falta un
 requisito que no puedas preparar, dime exactamente qué debo hacer.
 

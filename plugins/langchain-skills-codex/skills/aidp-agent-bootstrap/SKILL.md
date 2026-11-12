@@ -11,12 +11,17 @@ includes the plugin's executable `aidp-agent-flow` project helpers. Installing
 or loading this skill alone executes nothing. Do not bootstrap again for
 each node or prompt edit when the relevant environment is already verified.
 
+## Framework skills readiness
+
+Before authoring or changing framework code, follow [official framework skills](references/framework-skills.md). Check the active Codex skill inventory, reuse the separately installed official skills and load those required for this task. Missing skills must be installed through the supported host flow within setup authorization; this plugin does not bundle or automatically install them. Keep this instruction-level check distinct from CLI `doctor` and the native runtime profile.
+
 ## Local project entry point
 
 Resolve the project's pinned absolute CLI first and check `--version` and `--help`.
-For a new 0.4.9 setup, look for the versioned runtime under
-`~/.codex/runtimes/aidp-agent-flow/0.4.9/` (`Scripts/aidp-agent-flow.exe` on
-Windows, `bin/aidp-agent-flow` on Unix); verify it rather than assuming it exists.
+For a new setup, read the engine version from this distribution's `pyproject.toml`
+and look under `~/.codex/runtimes/aidp-agent-flow/<engine-version>/`
+(`Scripts/aidp-agent-flow.exe` on Windows, `bin/aidp-agent-flow` on Unix);
+verify it rather than assuming it exists.
 A bare command on PATH may still select an older campaign's engine. Do not replace
 it or silently switch an existing campaign; follow the documented adoption check.
 If the selected CLI is not installed, use the plugin's

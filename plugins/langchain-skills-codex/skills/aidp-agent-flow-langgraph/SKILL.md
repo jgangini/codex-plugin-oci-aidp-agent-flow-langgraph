@@ -5,6 +5,10 @@ description: Develop, adapt and debug Oracle AIDP LangGraph agents with verified
 
 # AIDP Agent Flow LangGraph
 
+Before framework implementation, check and load the separately installed
+[official framework skills](../aidp-agent-bootstrap/references/framework-skills.md).
+Reuse the bootstrap readiness result while that session and installation remain current.
+
 For architecture/layout diagnosis, packaging changes or prompt organization, read
 [agent structure and maintainable prompts](references/agent-structure.md) first.
 For an existing installation with path drift, first use the read-only
@@ -88,7 +92,7 @@ evidence requirements and pinned official examples.
 For memory, checkpoint, framework or dependency changes, first read
 [Oracle memory and external framework skills](references/oracle-memory-and-frameworks.md).
 It separates this plugin's development standard, the official Oracle execution
-skills, and the five unchanged upstream LangChain/LangGraph skills bundled here.
+skills, and the official LangChain/LangGraph skills installed separately.
 Use only the relevant framework skill; plugin/library updates are explicit
 operations, not prerequisites silently performed during development.
 

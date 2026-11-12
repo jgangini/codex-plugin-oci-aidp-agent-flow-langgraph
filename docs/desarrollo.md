@@ -25,7 +25,7 @@ $Python = Join-Path $Repo 'plugins/langchain-skills-codex/.venv/Scripts/python.e
 & $Python "$Repo/scripts/validate.py"
 ```
 
-El validador comprueba manifiestos, rutas de skills e iconos, hashes upstream, contratos del corpus y enlaces locales de la guía. Después prepara `plugins/validation-work` y ejecuta las pruebas existentes con el mismo Python. Son pruebas locales con servicios simulados; no habilitan llamadas a OCI ni publicaciones.
+El validador comprueba manifiestos, rutas de skills e iconos, ausencia de skills de framework duplicadas, contratos del corpus y enlaces locales de la guía. Después prepara `plugins/validation-work` y ejecuta las pruebas existentes con el mismo Python. Son pruebas locales con servicios simulados; no habilitan llamadas a OCI ni publicaciones.
 
 En Linux/macOS usa `.venv/bin/python`. Para una edición solo documental puedes ejecutar `scripts/validate.py --package-only`. También revisa `git diff --check`. Esta comprobación de enlaces valida archivos locales, no la disponibilidad de URLs externas ni anclas HTML.
 
@@ -49,4 +49,4 @@ uv build --wheel --out-dir "$Repo/.validation/dist" "$Repo/plugins/langchain-ski
 
 Ejecuta además el ejemplo inicial de la guía en un proyecto nuevo. Comprueba qué revisión y entorno produjo los recibos. Revisa los archivos que Git enviará: nunca deben incluir `.oci`, claves, entornos, resultados privados, enlaces internos o datos de proyectos reales.
 
-El plugin y el motor tienen versiones independientes: el manifiesto identifica las skills y el paquete; `pyproject.toml` y `aidp_agent_flow.__version__` deben coincidir para identificar el ejecutor. Una modificación funcional del ejecutor requiere una nueva versión de motor. Mantén licencia y hashes upstream, registra limitaciones en las notas de versión y publica un tag reproducible. Los controles locales no certifican un runtime Oracle ni reemplazan la aceptación de TEST y Agent Hub cuando cambia el comportamiento nativo.
+El plugin y el motor tienen versiones independientes: el manifiesto identifica las skills y el paquete; `pyproject.toml` y `aidp_agent_flow.__version__` deben coincidir para identificar el ejecutor. Una modificación funcional del ejecutor requiere una nueva versión de motor. Mantén las licencias y los avisos de terceros, registra limitaciones en las notas de versión y publica un tag reproducible. Los controles locales no certifican un runtime Oracle ni reemplazan la aceptación de TEST y Agent Hub cuando cambia el comportamiento nativo.

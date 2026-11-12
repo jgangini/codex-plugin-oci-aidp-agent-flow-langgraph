@@ -1,7 +1,6 @@
 """Validate the public distribution and run its existing offline regression suite."""
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,6 +13,10 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "langchain-skills-codex"
+AIDP_SKILLS = {
+    "aidp-agent-bootstrap", "aidp-agent-flow-langgraph",
+    "aidp-langgraph-test", "aidp-runtime-credentials",
+}
 
 
 def load_json(path):
@@ -38,16 +41,20 @@ def check_manifest():
     for skill in manifest["skills"]:
         if not (PLUGIN / skill / "SKILL.md").is_file():
             raise ValueError(f"Missing skill: {skill}")
+    check_skill_boundary(manifest["skills"])
     for asset in ("composerIcon", "logo"):
         if not (PLUGIN / manifest["interface"][asset]).is_file():
             raise ValueError(f"Missing asset: {asset}")
     return manifest["version"]
 
 
-def check_upstream():
-    for item in load_json(PLUGIN / "upstream-files.json"):
-        if hashlib.sha256((PLUGIN / item["path"]).read_bytes()).hexdigest() != item["sha256"]:
-            raise ValueError(f"Upstream file changed: {item['path']}")
+def check_skill_boundary(declared):
+    expected = {f"./skills/{name}/" for name in AIDP_SKILLS}
+    if set(declared) != expected or len(declared) != len(expected):
+        raise ValueError("Manifest must declare only the four AIDP skills")
+    shipped = {path.name for path in (PLUGIN / "skills").iterdir()}
+    if shipped != AIDP_SKILLS:
+        raise ValueError("Package must contain only the four AIDP skills; install framework skills separately")
 
 
 def check_examples():
@@ -78,10 +85,9 @@ def main():
     parser.add_argument("--package-only", action="store_true", help="Skip the engine regression suite")
     args = parser.parse_args()
     version = check_manifest()
-    check_upstream()
     check_examples()
     check_documentation()
-    print(f"Distribution {version}: marketplace, skills, assets, upstream, corpus and local links OK", flush=True)
+    print(f"Distribution {version}: marketplace, AIDP skill boundary, assets, corpus and local links OK", flush=True)
     if not args.package_only:
         subprocess.run([sys.executable, "-m", "unittest", "discover", "-s",
                         str(ROOT / "scripts/tests"), "-q"], check=True)

@@ -24,7 +24,13 @@ flowchart TD
 
 [Diagrama interactivo](diagrams/flujo-desarrollo.html) ·
 [Fuente editable del diagrama](diagrams/flujo-desarrollo.json) ·
-[Tutorial con comandos](guia-de-uso.md)
+[Tutorial con prompts](guia-de-uso.md)
+
+## Preparación antes del recorrido
+
+Instala el plugin AIDP y las [skills oficiales de LangChain](prerrequisitos.md#skills-oficiales-de-langchain) por separado. El bootstrap comprueba cuáles están disponibles en la sesión y carga las necesarias para el caso. Las skills oficiales orientan sobre el framework; el plugin mantiene el ciclo de desarrollo, evaluación e integración con AIDP. Si falta una skill requerida, se resuelve ese requisito antes de implementar la parte que depende de ella.
+
+El diagrama comienza después de esta preparación. Tener las skills disponibles no acredita compatibilidad del runtime, resultados de calidad ni autorización para publicar.
 
 ## Qué se comprueba en cada etapa
 

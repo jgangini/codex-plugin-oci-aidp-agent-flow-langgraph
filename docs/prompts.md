@@ -8,7 +8,7 @@ Para un caso de atención al cliente completo, sigue el [tutorial guiado](guia-d
 
 ```text
 Usa $aidp-agent-bootstrap, $aidp-agent-flow-langgraph y $aidp-langgraph-test
-del plugin AIDP Agent Flow LangGraph 0.4.45.
+del plugin AIDP Agent Flow LangGraph 0.4.46.
 
 Quiero crear un agente de [objetivo] para [usuarios]. Debe poder [tareas]
 con estas fuentes y herramientas: [lista]. No debe [acciones fuera de alcance].
@@ -36,7 +36,7 @@ No publiques hasta cerrar la aceptación TEST de la revisión candidata.
 ## Auditar y mejorar un agente existente
 
 ```text
-Usa $aidp-agent-flow-langgraph y $aidp-langgraph-test 0.4.45 para mejorar este
+Usa $aidp-agent-flow-langgraph y $aidp-langgraph-test 0.4.46 para mejorar este
 agente existente. Conserva su identidad, datos, credenciales compartidas,
 historial y comportamiento útil. No reinstales infraestructura como atajo.
 
@@ -62,7 +62,7 @@ y siguiente prueba útil. Alcance autorizado: [local/OCI TEST/publicación y lí
 ## Continuar una campaña que ya está en marcha
 
 ```text
-Carga las skills actualizadas de AIDP Agent Flow LangGraph 0.4.45 y continúa desde
+Carga las skills actualizadas de AIDP Agent Flow LangGraph 0.4.46 y continúa desde
 el último recibo verificable. No reinicies el corpus. Comprueba qué ejecutable usa
 la campaña; la actualización de skills no cambia automáticamente su motor.
 

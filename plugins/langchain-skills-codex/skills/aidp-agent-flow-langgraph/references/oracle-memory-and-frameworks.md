@@ -4,16 +4,15 @@
 
 AIDP Agent Flow LangGraph defines the development/test/publication standard.
 The installed official Oracle Workbench Engineer Agent handles supported live
-operations. Upstream LangChain/LangGraph skills supply framework guidance;
-five unchanged upstream skills are bundled here, not an Oracle integration.
+operations. Separately installed official LangChain/LangGraph skills supply
+framework guidance; they are not bundled here or an Oracle integration.
 
-Check whether those skills are available before recommending them. Use graph
-fundamentals, persistence or human review only for the relevant change;
-LangChain fundamentals/dependencies are optional when the implementation needs
-them. This plugin retains the technical ID `langchain-skills-codex` and packages
-five unmodified MIT upstream skills with explicit activation. It is not an
-official Codex plugin published by LangChain. Other supported upstream skill
-installations are valid; do not install a duplicate solely for this workflow.
+Follow the bootstrap
+[framework skills prerequisite](../../aidp-agent-bootstrap/references/framework-skills.md)
+to verify the active session and load only the skills needed for this change.
+This plugin retains the technical ID `langchain-skills-codex` and supplies four
+AIDP skills. It is not an official Codex plugin published by LangChain. Reuse
+a verified official installation; do not install a duplicate for this workflow.
 
 Before using upstream guidance, verify installed AIDP distribution versions,
 their dependency requirements and the Oracle runtime lifecycle. Oracle's Agent
