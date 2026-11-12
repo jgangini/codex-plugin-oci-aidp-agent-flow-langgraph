@@ -18,8 +18,9 @@ Distinguish metadata location from code inputs; do not bypass strict lifecycle
 guards or infer an agent metadata object from a matching folder name.
 For an authorized change of executable roots, use the verified CLI
 `native rebind` plan and explicit `sync --for-rebind` staging from that guide.
-Retain the observed metadata location and coordinate project-owned installer
-recovery; rebinding code inputs does not move CODE metadata or accept TEST.
+Rebind requires metadata aligned with the destination code root. If the observed
+metadata location differs, use the explicit development replacement route and
+coordinate project-owned installer recovery; rebind cannot relocate CODE metadata.
 Trace the files actually executed, prefer a thin AIDP entry with ordinary modules,
 use `core/` as the default package convention, and keep instructions readable
 beside their consumer. The name is a plugin convention, not an Oracle requirement. Treat folder changes as

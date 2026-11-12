@@ -48,6 +48,33 @@ def _metadata(model):
     return redact(result)
 
 
+def _model_pages(client, compartment, region, limit, retry):
+    items, page, visited, identities = [], None, set(), set()
+    for page_count in range(1, _MAX_PAGES + 1):
+        options = {"limit": limit, "retry_strategy": retry}
+        if page is not None:
+            options["page"] = page
+        response = client.list_models(compartment, **options)
+        batch = getattr(response.data, "items", None)
+        if not isinstance(batch, list) or len(batch) > limit or len(items) + len(batch) > _MAX_ITEMS:
+            raise FlowError("Model inventory exceeded its bounded size or returned an invalid page")
+        for model in batch:
+            item = _metadata(model)
+            if item["id"] in identities:
+                raise FlowError("Model inventory repeated a model identity; repeat the bounded read")
+            identities.add(item["id"])
+            items.append(item)
+        headers = {str(key).lower(): value for key, value in response.headers.items()}
+        page = headers.get("opc-next-page")
+        if page is None or page == "":
+            return {"region": region, "items": items, "complete": True, "pageCount": page_count,
+                    "inference_checked": False, "model_selected": False, "configuration_changed": False}
+        if not isinstance(page, str) or len(page) > 1024 or page in visited:
+            raise FlowError("Model inventory returned invalid or repeated pagination state")
+        visited.add(page)
+    raise FlowError("Model inventory exceeded its page bound; listing is incomplete")
+
+
 def list_models(root, limit=100):
     """Read all bounded pages; never select, invoke or change a model.
 
@@ -75,30 +102,7 @@ def list_models(root, limit=100):
         client = oci.generative_ai.GenerativeAiClient(
             {**config, "region": region}, signer=signer_for(config),
             retry_strategy=retry, timeout=(5, 60))
-        items, page, visited, identities = [], None, set(), set()
-        for page_count in range(1, _MAX_PAGES + 1):
-            options = {"limit": limit, "retry_strategy": retry}
-            if page is not None:
-                options["page"] = page
-            response = client.list_models(compartment, **options)
-            batch = getattr(response.data, "items", None)
-            if not isinstance(batch, list) or len(batch) > limit or len(items) + len(batch) > _MAX_ITEMS:
-                raise FlowError("Model inventory exceeded its bounded size or returned an invalid page")
-            for model in batch:
-                item = _metadata(model)
-                if item["id"] in identities:
-                    raise FlowError("Model inventory repeated a model identity; repeat the bounded read")
-                identities.add(item["id"])
-                items.append(item)
-            headers = {str(key).lower(): value for key, value in response.headers.items()}
-            page = headers.get("opc-next-page")
-            if page is None or page == "":
-                return {"region": region, "items": items, "complete": True, "pageCount": page_count,
-                        "inference_checked": False, "model_selected": False, "configuration_changed": False}
-            if not isinstance(page, str) or len(page) > 1024 or page in visited:
-                raise FlowError("Model inventory returned invalid or repeated pagination state")
-            visited.add(page)
-        raise FlowError("Model inventory exceeded its page bound; listing is incomplete")
+        return _model_pages(client, compartment, region, limit, retry)
     except FlowError:
         raise
     except Exception:

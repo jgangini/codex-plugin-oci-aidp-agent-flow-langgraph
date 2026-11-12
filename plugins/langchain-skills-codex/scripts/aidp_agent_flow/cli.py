@@ -291,21 +291,80 @@ def runtime_command(args):
     return report
 
 
+_LIFECYCLE_ACTIONS = {"sync": "sync_package", "ensure-agent": "ensure_agent", "test-init": "test_init",
+                     "test-refresh": "test_refresh", "status": "status", "session-create": "create_test_session",
+                     "publish": "publish", "inspect-binding": "inspect_binding", "inspect-layout": "inspect_layout", "retire-agent": "retire_agent", "prune-tree": "prune_tree", "rebind": "rebind"}
+
+
+def _native_lifecycle_command(args, root, config):
+    from .native_lifecycle import NativeLifecycle
+    lifecycle = NativeLifecycle(root, config)
+    try:
+        if args.action == "invoke":
+            if not args.apply:
+                return {"action": "invoke", "applied": False, "surface": args.surface,
+                        "native_test_accepted": False}
+            result = _campaign_invoke(args, lifecycle, root, config)
+            if (root / "node-progress.json").exists():
+                result["progress"] = try_report_progress(root)
+            return result
+        if args.action == "sync":
+            return lifecycle.sync_package(apply=args.apply, for_rebind=args.for_rebind,
+                **({"expected_inventory": args.expected_inventory} if args.expected_inventory else {}))
+        if args.action == "prune-tree":
+            return lifecycle.prune_tree(args.definition, apply=args.apply)
+        if args.action == "retire-agent":
+            return lifecycle.retire_agent(apply=args.apply, expected_binding=args.expected_binding)
+        if args.action == "rebind":
+            return lifecycle.rebind(apply=args.apply, expected_binding=args.expected_binding, allow_no_etag=args.allow_no_etag)
+        if args.action == "test-refresh":
+            return lifecycle.test_refresh(apply=args.apply, recover_failed=args.recover_failed)
+        operation = getattr(lifecycle, _LIFECYCLE_ACTIONS[args.action])
+        return operation() if args.action in {"status", "inspect-binding", "inspect-layout"} else operation(apply=args.apply)
+    finally:
+        lifecycle.close()
+
+
+def _registry_command(args, root, config):
+    from .registry import Registry
+    registry = Registry(root, config)
+    try:
+        if args.action == "list":
+            return registry.list(args.limit)
+        if args.action == "inspect-card":
+            return registry.inspect_card()
+        if args.action == "register":
+            return registry.register(args.metadata, apply=args.apply)
+        if args.action == "adopt":
+            return registry.adopt(args.registry_key)
+        if args.action == "portal-link":
+            return registry.portal_link()
+        if args.action == "hub-link":
+            return registry.hub_link()
+        return getattr(registry, args.action)()
+    finally:
+        registry.close()
+
+
+def _project_command(args):
+    if args.action == "init":
+        result = initialize(args.path, args.name, sync=not args.no_sync, langgraph_version=args.langgraph_version, runtime_profile=args.runtime_profile)
+        result["campaign"] = initialize_campaign(args.path, "tests/campaign-policy.json")
+        result["progress"] = try_report_progress(args.path)
+        return result
+    if args.action == "adopt":
+        return adopt(args.project, args.factory, args.entry, args.dependencies, args.python_path)
+    return sync_project(args.project)
+
+
 def execute(args):
     if args.command == "workflow":
         from .workflow_status import command
         return command(args)
     if args.command == "capabilities":
         return capabilities()
-    if args.command == "project" and args.action == "init":
-        result = initialize(args.path, args.name, sync=not args.no_sync, langgraph_version=args.langgraph_version, runtime_profile=args.runtime_profile)
-        result["campaign"] = initialize_campaign(args.path, "tests/campaign-policy.json")
-        result["progress"] = try_report_progress(args.path)
-        return result
-    if args.command == "project" and args.action == "adopt":
-        return adopt(args.project, args.factory, args.entry, args.dependencies, args.python_path)
     if args.command == "project":
-        return sync_project(args.project)
+        return _project_command(args)
     if args.command == "doctor":
         return doctor(args.project)
     if args.command == "runtime":
@@ -336,54 +395,9 @@ def execute(args):
         return list_models(args.project, args.limit)
     root, config = load_project(args.project)
     if args.command == "registry":
-        from .registry import Registry
-        registry = Registry(root, config)
-        try:
-            if args.action == "list":
-                return registry.list(args.limit)
-            if args.action == "inspect-card":
-                return registry.inspect_card()
-            if args.action == "register":
-                return registry.register(args.metadata, apply=args.apply)
-            if args.action == "adopt":
-                return registry.adopt(args.registry_key)
-            if args.action == "portal-link":
-                return registry.portal_link()
-            if args.action == "hub-link":
-                return registry.hub_link()
-            return getattr(registry, args.action)()
-        finally:
-            registry.close()
-    lifecycle_actions = {"sync": "sync_package", "ensure-agent": "ensure_agent", "test-init": "test_init",
-                         "test-refresh": "test_refresh", "status": "status", "session-create": "create_test_session",
-                         "publish": "publish", "inspect-binding": "inspect_binding", "inspect-layout": "inspect_layout", "retire-agent": "retire_agent", "prune-tree": "prune_tree", "rebind": "rebind"}
-    if args.command == "native" and args.action in {*lifecycle_actions, "invoke"}:
-        from .native_lifecycle import NativeLifecycle
-        lifecycle = NativeLifecycle(root, config)
-        try:
-            if args.action == "invoke":
-                if not args.apply:
-                    return {"action": "invoke", "applied": False, "surface": args.surface,
-                            "native_test_accepted": False}
-                result = _campaign_invoke(args, lifecycle, root, config)
-                if (root / "node-progress.json").exists():
-                    result["progress"] = try_report_progress(root)
-                return result
-            if args.action == "sync":
-                return lifecycle.sync_package(apply=args.apply, for_rebind=args.for_rebind,
-                    **({"expected_inventory": args.expected_inventory} if args.expected_inventory else {}))
-            if args.action == "prune-tree":
-                return lifecycle.prune_tree(args.definition, apply=args.apply)
-            if args.action == "retire-agent":
-                return lifecycle.retire_agent(apply=args.apply, expected_binding=args.expected_binding)
-            if args.action == "rebind":
-                return lifecycle.rebind(apply=args.apply, expected_binding=args.expected_binding, allow_no_etag=args.allow_no_etag)
-            if args.action == "test-refresh":
-                return lifecycle.test_refresh(apply=args.apply, recover_failed=args.recover_failed)
-            operation = getattr(lifecycle, lifecycle_actions[args.action])
-            return operation() if args.action in {"status", "inspect-binding", "inspect-layout"} else operation(apply=args.apply)
-        finally:
-            lifecycle.close()
+        return _registry_command(args, root, config)
+    if args.command == "native" and args.action in {*_LIFECYCLE_ACTIONS, "invoke"}:
+        return _native_lifecycle_command(args, root, config)
     client = WorkbenchClient(root, config)
     try:
         if args.command == "credentials":

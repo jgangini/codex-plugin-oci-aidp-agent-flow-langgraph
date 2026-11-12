@@ -115,11 +115,15 @@ move agent metadata, delete old source, create another agent or grant TEST credi
 The implementation has offline transport/recovery regressions. A read-only plan
 against a target is not a live mutation or native acceptance of that contract.
 
-Keep `[native] remote_root` as the destination code folder. When retaining an
-existing metadata location, set `metadata_root` to the exact observed `pathInfo`.
-It defaults to `remote_root` for existing configurations and new agents. A
-different metadata root requires the exact existing `agent_key`; it never changes
-`pathInfo` implicitly. Use `inspect-binding` first and preserve the current config.
+Keep `[native] remote_root` as the destination code folder and inspect the
+observed metadata location before staging. TEST and publication require that
+CODE metadata and code share that root. Rebinding executable paths cannot move
+`pathInfo`. If the metadata location differs, use the explicit development
+replacement procedure below; do not apply rebind and expect TEST refresh to
+complete. Rebind is for supported executable binding corrections with aligned
+metadata, not a metadata relocation.
+
+For aligned metadata, preserve the current config and inspect the binding first:
 
 ```text
 aidp-agent-flow --project <project> --json native inspect-binding
@@ -264,8 +268,6 @@ resource or completed request into a green quality verdict.
 - [Oracle Agent Creation and TEST](https://docs.oracle.com/en/cloud/paas/ai-data-platform/aidug/agent-creation.html).
 - [Oracle Agent REST operations](https://docs.oracle.com/en/cloud/paas/ai-data-platform/aiwap/api-agent.html).
 - [GA redeployment](https://docs.oracle.com/en/cloud/paas/ai-data-platform/aiwap/op-aidataplatforms-aidataplatformid-workspaces-workspacekey-agents-agentkey-deployments-actions-redeploy-post.html).
-- [AIDP engineering first-TEST async request](https://oracle.enterprise.slack.com/archives/C08K54LPT9C/p1791408805871229).
-- [Engineering explanation of the incorrect synchronous high-code route](https://oracle.enterprise.slack.com/archives/C08K54LPT9C/p1791472442502829).
 
 The legacy TEST/Registry surfaces are target-verified integrations, not a claim
 that every public GA SDK provides them. Stop on unsupported/auth failures and

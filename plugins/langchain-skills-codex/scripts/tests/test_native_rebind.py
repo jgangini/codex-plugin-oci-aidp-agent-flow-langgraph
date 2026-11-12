@@ -52,7 +52,7 @@ class NativeRebindTests(unittest.TestCase):
     def setUp(self):
         fixtures.NativeLifecycleTests.setUp(self)
         self.http = RebindHTTP()
-        self.config["native"].update(agent_key="agent-one", metadata_root="/Workspace/legacy")
+        self.config["native"].update(agent_key="agent-one", metadata_root=self.config["native"]["remote_root"])
         self.selected = self.instance(bound=True)
         self.http.agents = [{**self.selected._binding(), "key": "agent-one",
             "entryFilePath": "/Workspace/legacy/agent.py",
@@ -81,6 +81,17 @@ class NativeRebindTests(unittest.TestCase):
         self.assertTrue(all(call["method"] == "GET" for call in self.http.calls))
         self.assertFalse(self.selected.journal.exists())
 
+    def test_separate_metadata_plan_is_read_only_and_apply_rejects_before_effects(self):
+        self.selected.metadata_root = "/Workspace/legacy"
+        self.http.agents[0]["pathInfo"] = "/Workspace/legacy"
+        plan = self.selected.rebind()
+        self.assertFalse(plan["applied"])
+        self.http.calls.clear()
+        with self.assertRaisesRegex(FlowError, "metadata_root and remote_root"):
+            self.selected.rebind(apply=True, expected_binding=plan["binding_sha256"], allow_no_etag=True)
+        self.assertEqual(self.http.calls, [])
+        self.assertFalse(self.selected.journal.exists())
+
     def test_rebind_requires_staged_bytes_and_current_plan(self):
         plan = self.selected.rebind()
         with self.assertRaisesRegex(FlowError, "package bytes differ"):
@@ -105,7 +116,7 @@ class NativeRebindTests(unittest.TestCase):
         self.assertFalse(result["native_test_accepted"])
         self.assertFalse(result["old_source_deleted"])
         self.assertEqual(len(self.puts()), 1)
-        self.assertEqual(self.http.agents[0]["pathInfo"], "/Workspace/legacy")
+        self.assertEqual(self.http.agents[0]["pathInfo"], self.selected.remote_root)
         self.assertEqual(self.http.agents[0]["computeKey"], "compute-one")
         self.assertEqual(self.http.agents[0]["key"], "agent-one")
         self.assertNotIn("test_receipt", self.selected.state)

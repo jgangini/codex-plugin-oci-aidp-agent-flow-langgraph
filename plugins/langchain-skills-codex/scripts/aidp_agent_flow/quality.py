@@ -60,32 +60,13 @@ def validate_quality_case(root, case, mode):
         if canonical_hash(_bound(root, binding)) != canonical_hash(packet[key]):
             raise FlowError("Quality input differs from its bound source")
     if source["kind"] == "agent_receipt":
-        binding = source["bindings"]["answer"]
-        segments = binding["path"]
-        if (len(segments) < 4 or segments[0] != "results" or type(segments[1]) is not int
-                or segments[2] != "output"):
-            raise FlowError("Agent answer must bind to output in an original local-run receipt")
-        rows, receipt = _receipt(root, binding["file"])
-        saved, digest = _read_hashed(_path(root, binding["file"]))
-        if receipt["sha256"] != binding["sha256"] or digest != binding["sha256"]:
-            raise FlowError("Original receipt changed during quality validation")
-        original = saved["results"][segments[1]]
-        question = source["bindings"]["question"]
-        if (not isinstance(question, dict) or set(question) != {"file", "sha256", "path"}
-                or question["file"] != binding["file"] or question["sha256"] != binding["sha256"]):
-            raise FlowError("The assessed question must bind to the same original agent receipt")
-        parts = question["path"]
-        same_input = (len(parts) >= 5 and parts[0] == "experiments" and type(parts[1]) is int
-                      and 0 <= parts[1] < len(saved.get("experiments", [])) and parts[2:4] == ["case", "input"]
-                      and saved["experiments"][parts[1]].get("experiment_sha256") == original.get("experiment_sha256"))
-        if not same_input:
-            raise FlowError("Assessed question must come from this source run's original input")
-        if (original.get("passed") is not True or not original.get("experiment_sha256") or original["case_id"] not in rows
-                or "quality_mode" in original or "quality_assessment" in original
-                or rows[original["case_id"]]["execution_controls"] is None):
-            raise FlowError("Quality requires a closed, identified source run; technical failures remain separate")
+        _validate_agent_source(root, source, packet)
     if mode == "assess" and source["kind"] != "agent_receipt":
         raise FlowError("Assessment needs an original agent receipt, not a curated answer")
+    _validate_quality_labels(case, packet, mode)
+
+
+def _validate_quality_labels(case, packet, mode):
     labels = [item for item in case.get("assertions", []) if item["path"] == "assessment.semantic_pass"]
     if len(labels) != 1 or type(labels[0].get("equals")) is not bool:
         raise FlowError("Quality cases require one external boolean semantic_pass expectation")
@@ -97,6 +78,44 @@ def validate_quality_case(root, case, mode):
             raise FlowError("Calibration needs explicit external verdict labels for every rubric criterion")
     if mode == "assess" and labels[0]["equals"] is not True:
         raise FlowError("Assessment cannot redefine a rejected answer as an accepted outcome")
+
+
+def _validate_agent_source(root, source, packet):
+    binding = source["bindings"]["answer"]
+    segments = binding["path"]
+    if (len(segments) < 4 or segments[0] != "results" or type(segments[1]) is not int
+            or segments[2] != "output"):
+        raise FlowError("Agent answer must bind to output in an original local-run receipt")
+    rows, receipt = _receipt(root, binding["file"])
+    saved, digest = _read_hashed(_path(root, binding["file"]))
+    if receipt["sha256"] != binding["sha256"] or digest != binding["sha256"]:
+        raise FlowError("Original receipt changed during quality validation")
+    original = saved["results"][segments[1]]
+    _validate_original_question(source, binding, saved, original)
+    if (original.get("passed") is not True or not original.get("experiment_sha256") or original["case_id"] not in rows
+            or "quality_mode" in original or "quality_assessment" in original
+            or rows[original["case_id"]]["execution_controls"] is None):
+        raise FlowError("Quality requires a closed, identified source run; technical failures remain separate")
+    identity = packet.get("context", {}).get("generation_identity")
+    if identity is not None:
+        observed = {key: original.get(key) for key in
+                    ("config_sha256", "package_sha256", "engine_sha256", "environment_sha256", "mode")}
+        observed["model_settings"] = rows[original["case_id"]]["execution_controls"]["requested_model_settings"]
+        if canonical_hash(identity) != canonical_hash(observed):
+            raise FlowError("Generation identity must match the original agent receipt and model controls")
+
+
+def _validate_original_question(source, binding, saved, original):
+    question = source["bindings"]["question"]
+    if (not isinstance(question, dict) or set(question) != {"file", "sha256", "path"}
+            or question["file"] != binding["file"] or question["sha256"] != binding["sha256"]):
+        raise FlowError("The assessed question must bind to the same original agent receipt")
+    parts = question["path"]
+    same_input = (len(parts) >= 5 and parts[0] == "experiments" and type(parts[1]) is int
+                  and 0 <= parts[1] < len(saved.get("experiments", [])) and parts[2:4] == ["case", "input"]
+                  and saved["experiments"][parts[1]].get("experiment_sha256") == original.get("experiment_sha256"))
+    if not same_input:
+        raise FlowError("Assessed question must come from this source run's original input")
 
 
 def _signature(root, config, cases, real):
@@ -131,20 +150,24 @@ def _calibration(root, reference, signature):
     for case in cases:
         row = rows.get(case["id"], {})
         validate_quality_case(root, case, "calibrate")
-        attempt = attempts.get(row.get("campaign_attempt_id"), {})
-        if (attempt.get("state") != "COMPLETED" or attempt.get("passed") is not True
-                or attempt.get("experiment_sha256") != row.get("experiment_sha256")
-                or attempt.get("result_artifact") != receipt["path"]):
-            raise FlowError("Calibration campaign attempt is not closed and bound to this execution")
-        expected = next(item["equals"] for item in case["assertions"] if item["path"] == "assessment.semantic_pass")
-        labels.add(expected)
-        if (row.get("quality_mode") != "calibrate" or row.get("quality_assessment", {}).get("semantic_pass") is not expected
-                or any(row.get(key) != current_identity[key] for key in current_identity)
-                or row.get("config_sha256") != canonical_hash(config)):
-            raise FlowError("Calibration lacks matching judged labels or current evaluator identity")
+        labels.add(_validate_calibration_case(case, row, attempts, receipt, current_identity, config))
     if labels != {True, False}:
         raise FlowError("Calibration requires reviewed positive and negative examples")
     return {"path": str(reference), "sha256": report_digest}
+
+
+def _validate_calibration_case(case, row, attempts, receipt, current_identity, config):
+    attempt = attempts.get(row.get("campaign_attempt_id"), {})
+    if (attempt.get("state") != "COMPLETED" or attempt.get("passed") is not True
+            or attempt.get("experiment_sha256") != row.get("experiment_sha256")
+            or attempt.get("result_artifact") != receipt["path"]):
+        raise FlowError("Calibration campaign attempt is not closed and bound to this execution")
+    expected = next(item["equals"] for item in case["assertions"] if item["path"] == "assessment.semantic_pass")
+    if (row.get("quality_mode") != "calibrate" or row.get("quality_assessment", {}).get("semantic_pass") is not expected
+            or any(row.get(key) != current_identity[key] for key in current_identity)
+            or row.get("config_sha256") != canonical_hash(config)):
+        raise FlowError("Calibration lacks matching judged labels or current evaluator identity")
+    return expected
 
 
 def run_quality(root, case_file, *, mode, selected=None, real=False, timeout=120,

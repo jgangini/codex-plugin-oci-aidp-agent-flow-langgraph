@@ -60,8 +60,11 @@ def check_examples():
 
 
 def check_documentation():
-    pages = [ROOT / "README.md", *(ROOT / "docs").rglob("*.md")]
+    pages = [ROOT / "README.md", *(ROOT / "docs").rglob("*.md"),
+             *(PLUGIN / "skills").rglob("*.md")]
     for page in pages:
+        if "oracle.enterprise.slack.com" in page.read_text(encoding="utf-8").casefold():
+            raise ValueError("Internal enterprise links cannot be distributed publicly")
         for target in re.findall(r"\]\(([^\s)]+)\)", page.read_text(encoding="utf-8")):
             if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target) or target.startswith("#"):
                 continue

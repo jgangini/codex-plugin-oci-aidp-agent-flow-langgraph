@@ -2,6 +2,8 @@
 
 El ejemplo siguiente comprueba la instalación y el ejecutor con un agente mínimo. No construye automáticamente un agente de negocio terminado. Para implementar tu caso usa los [prompts](prompts.md) y define el [corpus](corpus-y-pruebas.md).
 
+Consulta el [flujo de desarrollo](flujo-de-desarrollo.md) para entender las decisiones y los retornos de este recorrido. El paquete se distribuye bajo [licencia MIT](../LICENSE).
+
 ## 1. Instalar un motor versionado
 
 Tras instalar las skills en Codex, clona el repositorio para instalar su CLI. Ejemplo PowerShell desde tu carpeta de desarrollo:
@@ -9,9 +11,9 @@ Tras instalar las skills en Codex, clona el repositorio para instalar su CLI. Ej
 ```powershell
 git clone https://github.com/jgangini/codex-plugin-oci-aidp-agent-flow-langgraph.git
 cd codex-plugin-oci-aidp-agent-flow-langgraph
-git checkout v0.4.44
+git checkout v0.4.45
 $Repo = (Get-Location).Path
-$Motor = Join-Path $HOME '.codex/runtimes/aidp-agent-flow/0.4.30'
+$Motor = Join-Path $HOME '.codex/runtimes/aidp-agent-flow/0.4.31'
 uv venv $Motor --python 3.11
 uv pip install --python "$Motor/Scripts/python.exe" "$Repo/plugins/langchain-skills-codex"
 $Flow = Join-Path $Motor 'Scripts/aidp-agent-flow.exe'
@@ -94,6 +96,20 @@ Con esa preparación y autorización vigentes:
 
 `--real` llama al modelo configurado. No convierte automáticamente servicios grabados en MCP o consultas reales. Para conexiones reales necesitas adaptadores comprobados, identidades, permisos y pruebas de integración específicas.
 
+## Evaluar calidad y consistencia
+
+Las comprobaciones del corpus y la revisión semántica cumplen funciones distintas.
+Para evaluar respuestas guardadas, prepara paquetes de pregunta, respuesta, fuentes,
+rúbrica y hechos de referencia con vínculos a sus archivos y hashes. Calibra el juez
+con ejemplos positivos y negativos revisados antes de usarlo para evaluar al agente.
+Sigue los comandos y contratos de [evaluación semántica](../plugins/langchain-skills-codex/skills/aidp-langgraph-test/references/semantic-quality.md).
+
+Una comparación entre ejecuciones necesita la misma pregunta, evidencia y revisión
+identificada. La identidad declarada debe coincidir con el recibo original y sus
+parámetros de modelo; un contexto copiado de otra ejecución se rechaza. Sin esos
+datos la comparación no acredita consistencia. Los desacuerdos del juez se conservan
+para revisar su criterio; no se convierten automáticamente en cambios del prompt.
+
 ## 5. Pasar a AIDP TEST
 
 Completa `[native]`, prepara el acceso del agente mediante Credential Store y verifica compute y compatibilidad. Una carpeta local no demuestra que el destino remoto exista o sea propio.
@@ -120,6 +136,7 @@ Después de superar los casos locales pertinentes, inspecciona y aplica las oper
 & $Flow --project $Proyecto --json native sync
 & $Flow --project $Proyecto --json native sync --apply
 & $Flow --project $Proyecto --json native ensure-agent --apply
+& $Flow --project $Proyecto --json native inspect-layout
 & $Flow --project $Proyecto --json native test-init --apply
 & $Flow --project $Proyecto --json native status
 ```

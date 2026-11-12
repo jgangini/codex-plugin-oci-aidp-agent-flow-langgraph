@@ -354,6 +354,44 @@ class QualityTests(unittest.TestCase):
         with self.assertRaisesRegex(FlowError, 'original input'):
             validate_quality_case(self.root, case, 'assess')
 
+    def test_generation_identity_is_verified_against_original_receipt(self):
+        identity = {key: str(index) * 64 for index, key in enumerate(
+            ("config_sha256", "package_sha256", "engine_sha256", "environment_sha256"), 1)}
+        identity.update(mode="local_fixture_model", model_settings={"model_id": "fixture"})
+        run = {"results": [{"case_id": "source", "passed": True, "experiment_sha256": "a" * 64,
+                           **{key: value for key, value in identity.items() if key != "model_settings"},
+                           "output": {"answer": self.data["answer"]}}],
+               "experiments": [{"experiment_sha256": "a" * 64, "max_steps": 5,
+                                "timeout_seconds": 30, "requested_model_settings": identity["model_settings"],
+                                "case": {"input": {"question": self.data["question"]}}}]}
+        original = self.root / "tests/original.json"
+        original.write_text(json.dumps(run), encoding="utf-8")
+        digest = hashlib.sha256(original.read_bytes()).hexdigest()
+        for changed in (None, *identity):
+            with self.subTest(changed=changed):
+                case = deepcopy(self.case)
+                declared = deepcopy(identity)
+                if changed:
+                    declared[changed] = ({"model_id": "other"} if changed == "model_settings" else
+                                         "local_real_oci_model" if changed == "mode" else "f" * 64)
+                case["input"]["packet"]["context"] = {"generation_identity": declared}
+                self.source.write_text(json.dumps({"packet": case["input"]["packet"]}), encoding="utf-8")
+                bindings = case["input"]["source"]["bindings"]
+                for key in case["input"]["packet"]:
+                    bindings[key] = {"file": "tests/reviewed.json",
+                                     "sha256": hashlib.sha256(self.source.read_bytes()).hexdigest(),
+                                     "path": ["packet", key]}
+                bindings["answer"] = {"file": "tests/original.json", "sha256": digest,
+                                      "path": ["results", 0, "output", "answer"]}
+                bindings["question"] = {"file": "tests/original.json", "sha256": digest,
+                                        "path": ["experiments", 0, "case", "input", "question"]}
+                case["input"]["source"]["kind"] = "agent_receipt"
+                if changed:
+                    with self.assertRaisesRegex(FlowError, "Generation identity"):
+                        validate_quality_case(self.root, case, "assess")
+                else:
+                    validate_quality_case(self.root, case, "assess")
+
     def test_invalid_judge_output_is_saved_privately_with_safe_contract_reason(self):
         value = assessment()
         value['claims'][0]['quote'] = 'Invented phrase absent from the original answer'

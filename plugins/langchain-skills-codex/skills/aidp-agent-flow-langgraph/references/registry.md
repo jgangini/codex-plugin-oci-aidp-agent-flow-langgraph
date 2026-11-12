@@ -144,9 +144,7 @@ They are not claimed as GA `20260430/aiDataPlatforms` Registry endpoints.
   documents authenticated card discovery and the separate published-card scope.
 - [Oracle GA REST endpoint index](https://docs.oracle.com/en/cloud/paas/ai-data-platform/aiwap/rest-endpoints.html)
   documents deployment/card operations; card updates are not Registry registration.
-- [Engineering registration investigation](https://oracle.enterprise.slack.com/archives/C08K54LPT9C/p1785941889640039)
   supplied the observed Registry routes and inspection envelope.
-- [Engineering diagnosis of duplicate interface nesting](https://oracle.enterprise.slack.com/archives/C08K54LPT9C/p1785967830753359)
   explains the rejected wrapper and why the normalized contract must be preserved.
 
 No customer identifiers, captured authentication headers or other agents' card

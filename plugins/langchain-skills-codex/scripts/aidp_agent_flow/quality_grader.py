@@ -129,6 +129,28 @@ def _index(rows):
     return result
 
 
+def _validate_packet_rows(evidence, criteria, facts):
+    for row in evidence.values():
+        if not {"id", "text"} <= set(row) or set(row) - {"id", *EVIDENCE_FIELDS}:
+            raise FlowError("Evidence rows require id/text and only supported provenance fields")
+        for key in set(row) - {"id"}:
+            _text(row[key], EVIDENCE_FIELDS[key])
+    for row in criteria.values():
+        if set(row) != {"id", "instruction"}:
+            raise FlowError("Criteria require only id and instruction")
+        _text(row["instruction"], 4000)
+    _validate_reference_facts(facts, evidence)
+
+
+def _validate_reference_facts(facts, evidence):
+    for row in facts.values():
+        if (set(row) != {"id", "text", "evidence_ids", "required"}
+                or type(row["required"]) is not bool or not isinstance(row["evidence_ids"], list)
+                or not row["evidence_ids"] or any(i not in evidence for i in row["evidence_ids"])):
+            raise FlowError("Reference facts need text, a strict required flag and known evidence ids")
+        _text(row["text"], 4000)
+
+
 def validate_packet(packet):
     required = {"question", "answer", "evidence", "criteria", "reference_facts"}
     if not isinstance(packet, dict) or not required <= set(packet) or set(packet) - required - {"context"}:
@@ -140,24 +162,59 @@ def validate_packet(packet):
     evidence = _index(_rows(packet["evidence"], 100))
     criteria = _index(_rows(packet["criteria"], 30))
     facts = _index(_rows(packet["reference_facts"], 100, empty=True))
-    for row in evidence.values():
-        if not {"id", "text"} <= set(row) or set(row) - {"id", *EVIDENCE_FIELDS}:
-            raise FlowError("Evidence rows require id/text and only supported provenance fields")
-        for key in set(row) - {"id"}:
-            _text(row[key], EVIDENCE_FIELDS[key])
-    for row in criteria.values():
-        if set(row) != {"id", "instruction"}:
-            raise FlowError("Criteria require only id and instruction")
-        _text(row["instruction"], 4000)
-    for row in facts.values():
-        if (set(row) != {"id", "text", "evidence_ids", "required"}
-                or type(row["required"]) is not bool or not isinstance(row["evidence_ids"], list)
-                or not row["evidence_ids"] or any(i not in evidence for i in row["evidence_ids"])):
-            raise FlowError("Reference facts need text, a strict required flag and known evidence ids")
-        _text(row["text"], 4000)
+    _validate_packet_rows(evidence, criteria, facts)
     if len(json.dumps(packet, ensure_ascii=False).encode("utf-8")) > 200000:
         raise FlowError("Quality packet exceeds 200 KB; select a reviewed evidence scope")
     return evidence, criteria, facts
+
+
+def _validate_claims(claims, answer, evidence):
+    seen = set()
+    for row in claims:
+        if (not isinstance(row, dict) or set(row) != {"quote", "material", "verdict", "evidence"}
+                or type(row["material"]) is not bool or row["verdict"] not in {"supported", "unsupported", "unknown"}):
+            raise FlowError("Invalid atomic claim verdict")
+        quote = _text(row["quote"], 4000)
+        if quote not in answer or quote in seen:
+            raise FlowError("Claim quotes must be unique literal answer excerpts")
+        seen.add(quote)
+        _validate_support(row["evidence"], evidence)
+        if row["verdict"] == "supported" and not row["evidence"]:
+            raise FlowError("Supported claims require evidence excerpts")
+
+
+def _validate_support(sources, evidence):
+    for source in _rows(sources, 100, empty=True):
+        if (not isinstance(source, dict) or not {"id", "quote"} <= set(source) or set(source) - {"id", "quote", "field"}
+                    or source["id"] not in evidence or not isinstance(source["quote"], str)
+                    or source.get("field", "text") not in EVIDENCE_FIELDS
+                    or not source["quote"].strip()
+                    or source["quote"] not in evidence[source["id"]].get(source.get("field", "text"), "")):
+            raise FlowError("Support excerpts must occur in the identified evidence")
+
+
+def _validate_coverage(coverage, answer):
+    for row in coverage.values():
+        if (set(row) != {"id", "covered", "answer_quote"} or type(row["covered"]) is not bool
+                or not isinstance(row["answer_quote"], str)
+                or (row["covered"] and (not row["answer_quote"].strip() or row["answer_quote"] not in answer))
+                or (not row["covered"] and row["answer_quote"] != "")):
+            raise FlowError("Covered reference facts require literal answer excerpts")
+
+
+def _assessment_result(judged, claims, facts, coverage, value):
+    supported = sum(row["verdict"] == "supported" for row in claims)
+    material_errors = sum(row["material"] and row["verdict"] != "supported" for row in claims)
+    missing = [key for key, row in facts.items() if row["required"] and not coverage[key]["covered"]]
+    return {"semantic_pass": all(row["verdict"] == "pass" for row in judged.values()) and material_errors == 0 and not missing,
+            "criteria": {key: row["verdict"] for key, row in judged.items()},
+            "metrics": {"claims": len(claims), "supported_claims": supported,
+                        "supported_claim_fraction": supported / len(claims) if claims else None, "material_errors": material_errors,
+                        "reference_facts": len(facts), "covered_reference_facts": sum(row["covered"] for row in coverage.values())},
+            "missing_required_facts": missing, "assessment": value,
+            "limitations": ["Model judgment is fallible and may miss claims or entailment errors",
+                            "Literal excerpts authenticate text, not semantic entailment or independent truth",
+                            "No universal numerical acceptance threshold or native TEST credit"]}
 
 
 def _grade_response(packet, response):
@@ -177,42 +234,9 @@ def _grade_response(packet, response):
             raise FlowError("Invalid quality criterion verdict")
         _text(row["reason"], 4000)
     claims = _rows(value["claims"], 200, empty=True)
-    seen = set()
-    for row in claims:
-        if (not isinstance(row, dict) or set(row) != {"quote", "material", "verdict", "evidence"}
-                or type(row["material"]) is not bool or row["verdict"] not in {"supported", "unsupported", "unknown"}):
-            raise FlowError("Invalid atomic claim verdict")
-        quote = _text(row["quote"], 4000)
-        if quote not in packet["answer"] or quote in seen:
-            raise FlowError("Claim quotes must be unique literal answer excerpts")
-        seen.add(quote)
-        for source in _rows(row["evidence"], 100, empty=True):
-            if (not isinstance(source, dict) or not {"id", "quote"} <= set(source) or set(source) - {"id", "quote", "field"}
-                    or source["id"] not in evidence or not isinstance(source["quote"], str)
-                    or source.get("field", "text") not in EVIDENCE_FIELDS
-                    or not source["quote"].strip()
-                    or source["quote"] not in evidence[source["id"]].get(source.get("field", "text"), "")):
-                raise FlowError("Support excerpts must occur in the identified evidence")
-        if row["verdict"] == "supported" and not row["evidence"]:
-            raise FlowError("Supported claims require evidence excerpts")
-    for row in coverage.values():
-        if (set(row) != {"id", "covered", "answer_quote"} or type(row["covered"]) is not bool
-                or not isinstance(row["answer_quote"], str)
-                or (row["covered"] and (not row["answer_quote"].strip() or row["answer_quote"] not in packet["answer"]))
-                or (not row["covered"] and row["answer_quote"] != "")):
-            raise FlowError("Covered reference facts require literal answer excerpts")
-    supported = sum(row["verdict"] == "supported" for row in claims)
-    material_errors = sum(row["material"] and row["verdict"] != "supported" for row in claims)
-    missing = [key for key, row in facts.items() if row["required"] and not coverage[key]["covered"]]
-    return {"semantic_pass": all(row["verdict"] == "pass" for row in judged.values()) and material_errors == 0 and not missing,
-            "criteria": {key: row["verdict"] for key, row in judged.items()},
-            "metrics": {"claims": len(claims), "supported_claims": supported,
-                        "supported_claim_fraction": supported / len(claims) if claims else None, "material_errors": material_errors,
-                        "reference_facts": len(facts), "covered_reference_facts": sum(row["covered"] for row in coverage.values())},
-            "missing_required_facts": missing, "assessment": value,
-            "limitations": ["Model judgment is fallible and may miss claims or entailment errors",
-                            "Literal excerpts authenticate text, not semantic entailment or independent truth",
-                            "No universal numerical acceptance threshold or native TEST credit"]}
+    _validate_claims(claims, packet["answer"], evidence)
+    _validate_coverage(coverage, packet["answer"])
+    return _assessment_result(judged, claims, facts, coverage, value)
 
 
 def grade_response(packet, response):

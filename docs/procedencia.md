@@ -14,3 +14,5 @@ La distribución pública retira enlaces a conversaciones internas de ingenierí
 Las integraciones legacy descritas se mantienen como contratos verificados en un destino, no como promesa de disponibilidad universal ni como API GA. Sus límites y las referencias públicas de Oracle permanecen documentados.
 
 No se incluyen claves, configuración OCI real, conversaciones, corpus privados ni resultados de proyectos de clientes. Los ejemplos de pedidos son ficticios.
+
+El diagrama interactivo del flujo se genera con [Archify](https://github.com/tt-a1i/archify). Su runtime conserva la licencia [Apache-2.0](diagrams/LICENSE-Archify.txt); el contenido propio y el plugin mantienen MIT. La fuente editable está junto al HTML.

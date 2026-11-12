@@ -1,6 +1,6 @@
 {
   "name": "langchain-skills-codex",
-  "version": "0.4.44",
+  "version": "0.4.45",
   "description": "Local-first AIDP LangGraph agent development with guarded CLI TEST, deployment, Registry, model inventory and Credential Store workflows.",
   "author": {
     "name": "Joel Gangini (AIDP workflow and Codex adaptation); LangChain, Inc. (upstream skills)"

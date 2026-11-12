@@ -125,16 +125,7 @@ class NativeLifecycle:
             return False
         route = parsed.path
         if method == "GET":
-            if not legacy and route == self.ws + "/objects":
-                query = parse_qs(parsed.query)
-                roots = query.get("path", [])
-                return (set(query) <= {"path", "limit", "page"} and len(roots) == 1
-                        and (roots[0] == self.remote_root or roots[0].startswith(self.remote_root + "/")))
-            prefixes = [self.ws + "/agentFlowDeployments", self.ws + "/agentFlowSessions"] if legacy else [self.ws + "/agents", "/asyncOperations/"]
-            if not legacy and route.startswith(self.ws + "/objects/"):
-                remote = unquote(route.removeprefix(self.ws + "/objects/"))
-                return remote == "/Workspace" or remote == self.remote_root or remote.startswith(self.remote_root + "/") or self.remote_root.startswith(remote + "/")
-            return any(route == prefix or route.startswith(prefix.rstrip("/") + "/") for prefix in prefixes)
+            return self._allowed_read(parsed, legacy)
         if method == "DELETE":
             if not self._posting or legacy or parsed.query:
                 return False
@@ -147,6 +138,9 @@ class NativeLifecycle:
                     and route == self.ws + "/agents/" + str(self.agent_key))
         if method != "POST" or not self._posting or parsed.query:
             return False
+        return self._allowed_post(route, headers, legacy)
+
+    def _allowed_post(self, route, headers, legacy):
         if legacy:
             return route in {self.ws + "/actions/redeployAgentFlow", self.ws + "/agentFlowSessions",
                              self.ws + "/agentFlows/" + str(self.agent_key) + "/deployments/actions/redeploy"}
@@ -157,6 +151,19 @@ class NativeLifecycle:
             return headers.get("type") == "FILE" and remote.startswith(self.remote_root + "/")
         return route in {self.ws + "/agents", self.ws + "/agents/" + str(self.agent_key) + "/deployments/actions/deploy",
                          self.ws + "/agents/" + str(self.agent_key) + "/deployments/actions/redeploy"}
+
+    def _allowed_read(self, parsed, legacy):
+        route = parsed.path
+        if not legacy and route == self.ws + "/objects":
+            query = parse_qs(parsed.query)
+            roots = query.get("path", [])
+            return (set(query) <= {"path", "limit", "page"} and len(roots) == 1
+                    and (roots[0] == self.remote_root or roots[0].startswith(self.remote_root + "/")))
+        prefixes = [self.ws + "/agentFlowDeployments", self.ws + "/agentFlowSessions"] if legacy else [self.ws + "/agents", "/asyncOperations/"]
+        if not legacy and route.startswith(self.ws + "/objects/"):
+            remote = unquote(route.removeprefix(self.ws + "/objects/"))
+            return remote == "/Workspace" or remote == self.remote_root or remote.startswith(self.remote_root + "/") or self.remote_root.startswith(remote + "/")
+        return any(route == prefix or route.startswith(prefix.rstrip("/") + "/") for prefix in prefixes)
 
     def _request(self, method, path, *, payload=None, data=None, headers=None, legacy=False, raw=False, absent=False):
         headers = dict(headers or {})
@@ -405,49 +412,9 @@ class NativeLifecycle:
                 if saved is not None and (kind == "folder" or hashlib.sha256(saved).hexdigest() == record["body_sha256"]):
                     self._reconciled(path, record)
             elif kind in {"test-init", "test-refresh", "publish"} and record.get("operation_key"):
-                operation, _ = self._request("GET", "/asyncOperations/" + _key(record["operation_key"]))
-                if (not isinstance(operation, dict) or operation.get("key") != record["operation_key"]
-                        or operation.get("resourceType") != "AGENT" or operation.get("actionType") != "DEPLOY_AGENT"):
-                    raise FlowError("Async operation readback does not match the recorded deployment operation")
-                if record.get("operation_status") != operation.get("status"):
-                    record["operation_status"] = operation.get("status")
-                    private_json(path, record, overwrite=True)
-                if operation.get("status") == "SUCCEEDED":
-                    selected = "PROD" if kind == "publish" else "TEST"
-                    rows = self._deployments(selected)
-                    if not any(row.get("lifecycleState") == "ACTIVE" for row in rows):
-                        continue
-                    if self._snapshot(rows) == record["deployment_before"]:
-                        continue
-                    if selected == "TEST" and self._snapshot(self._deployments("PROD")) != record["prod_before"]:
-                        raise FlowError("Production deployment changed during the TEST operation; reconcile before continuing")
-                    self.state[selected.lower() + "_receipt"] = {"package_sha256": record["package_sha256"], "deployments": self._snapshot(rows)}
-                    self._save_state()
-                    self._reconciled(path, record)
-                elif operation.get("status") in {"FAILED", "CANCELED"}:
-                    selected = "PROD" if kind == "publish" else "TEST"
-                    after = self._snapshot(self._deployments(selected))
-                    prod_after = after if selected == "PROD" else self._snapshot(self._deployments("PROD"))
-                    if selected == "TEST" and prod_after != record["prod_before"]:
-                        raise FlowError("Production changed during a failed TEST operation; manual reconciliation is required")
-                    record.update(state="FAILED_RECONCILED", deployment_after=after, prod_after=prod_after)
-                    private_json(path, record, overwrite=True)
-                elif operation.get("status") != "IN_PROGRESS":
-                    raise FlowError("Async operation returned an unsupported state")
+                self._reconcile_deployment(path, record)
             elif kind == "rebind":
-                if record.get("binding_after") != self._binding():
-                    raise FlowError("Recorded rebinding differs from the selected configuration")
-                item, _ = self._source_agent()
-                if all(item.get(key) == value for key, value in record["binding_after"].items()):
-                    package, _ = self._package()
-                    if package["package_sha256"] != record["package_sha256"]:
-                        raise FlowError("Rebinding package changed; preserve and reconcile its original candidate")
-                    self._verify_package(package)
-                    if self._snapshot(self._deployments("PROD")) != record["prod_before"]:
-                        raise FlowError("Production changed during rebinding; reconcile before continuing")
-                    self._finish_rebind(path, record)
-                elif any(item.get(key) != value for key, value in record["binding_before"].items()):
-                    raise FlowError("Rebinding outcome differs from both recorded bindings")
+                self._reconcile_rebind(path, record)
             elif kind == "session-test" and record.get("resource_key"):
                 saved = self._session_info(record["resource_key"], self._deployments("TEST"))
                 if saved["lifecycleState"] in (None, "ACTIVE"):
@@ -456,6 +423,56 @@ class NativeLifecycle:
                     self._reconciled(path, record)
                     self.state["test_session_key"] = record["resource_key"]
                     self._save_state()
+
+    def _reconcile_successful_deployment(self, path, record, kind):
+        selected = "PROD" if kind == "publish" else "TEST"
+        rows = self._deployments(selected)
+        if not any(row.get("lifecycleState") == "ACTIVE" for row in rows):
+            return
+        if self._snapshot(rows) == record["deployment_before"]:
+            return
+        if selected == "TEST" and self._snapshot(self._deployments("PROD")) != record["prod_before"]:
+            raise FlowError("Production deployment changed during the TEST operation; reconcile before continuing")
+        self.state[selected.lower() + "_receipt"] = {"package_sha256": record["package_sha256"], "deployments": self._snapshot(rows)}
+        self._save_state()
+        self._reconciled(path, record)
+
+    def _reconcile_deployment(self, path, record):
+        kind = record["kind"]
+        operation, _ = self._request("GET", "/asyncOperations/" + _key(record["operation_key"]))
+        if (not isinstance(operation, dict) or operation.get("key") != record["operation_key"]
+                or operation.get("resourceType") != "AGENT" or operation.get("actionType") != "DEPLOY_AGENT"):
+            raise FlowError("Async operation readback does not match the recorded deployment operation")
+        if record.get("operation_status") != operation.get("status"):
+            record["operation_status"] = operation.get("status")
+            private_json(path, record, overwrite=True)
+        if operation.get("status") == "SUCCEEDED":
+            self._reconcile_successful_deployment(path, record, kind)
+        elif operation.get("status") in {"FAILED", "CANCELED"}:
+            selected = "PROD" if kind == "publish" else "TEST"
+            after = self._snapshot(self._deployments(selected))
+            prod_after = after if selected == "PROD" else self._snapshot(self._deployments("PROD"))
+            if selected == "TEST" and prod_after != record["prod_before"]:
+                raise FlowError("Production changed during a failed TEST operation; manual reconciliation is required")
+            record.update(state="FAILED_RECONCILED", deployment_after=after, prod_after=prod_after)
+            private_json(path, record, overwrite=True)
+        elif operation.get("status") != "IN_PROGRESS":
+            raise FlowError("Async operation returned an unsupported state")
+
+    def _reconcile_rebind(self, path, record):
+        if record.get("binding_after") != self._binding():
+            raise FlowError("Recorded rebinding differs from the selected configuration")
+        item, _ = self._source_agent()
+        if all(item.get(key) == value for key, value in record["binding_after"].items()):
+            package, _ = self._package()
+            if package["package_sha256"] != record["package_sha256"]:
+                raise FlowError("Rebinding package changed; preserve and reconcile its original candidate")
+            self._verify_package(package)
+            if self._snapshot(self._deployments("PROD")) != record["prod_before"]:
+                raise FlowError("Production changed during rebinding; reconcile before continuing")
+            self._finish_rebind(path, record)
+        elif any(item.get(key) != value for key, value in record["binding_before"].items()):
+            raise FlowError("Rebinding outcome differs from both recorded bindings")
 
     def _guard(self):
         if any(record.get("state") not in {"RECONCILED", "FAILED_RECONCILED"} for _, record in self._intents()):
@@ -480,18 +497,7 @@ class NativeLifecycle:
         if conditions is not None and (saved is None or hashlib.sha256(saved).hexdigest() not in conditions[relative]):
             raise FlowError("Managed source drift was preserved; sync preconditions no longer match")
 
-    def sync_package(self, apply=False, for_rebind=False, expected_inventory=None):
-        package, folder = self._package()
-        conditions = self._sync_conditions(expected_inventory, package)
-        source_roots = []
-        if for_rebind:
-            current, _ = self._source_agent()
-            self._rebind_deployments()
-            self._rebind_guard()
-            source_roots = [str(PurePosixPath(current[field]).parent)
-                            for field in ("entryFilePath", "dependenciesFilePath")]
-            if self.remote_root in source_roots:
-                raise FlowError("Rebinding staging requires a separate code location; use normal sync for an unchanged root")
+    def _sync_changes(self, package, source_roots, conditions, for_rebind):
         changed = []
         for relative, digest in package["files"].items():
             remote = self.remote_root + "/" + relative
@@ -503,13 +509,9 @@ class NativeLifecycle:
                 raise FlowError("Rebinding staging requires absent or identical target files; preserve conflicting bytes")
             if saved is None or hashlib.sha256(saved).hexdigest() != digest:
                 changed.append(relative)
-        if not apply:
-            return {"action": "sync-package", "applied": False, "files_to_write": changed,
-                    "package_sha256": package["package_sha256"], "remote_extra_files_checked": False}
-        self._reconcile()
-        if changed:
-            self._ownership(self._rows(self.ws + "/agents"), for_rebind=for_rebind)
-            self._guard()
+        return changed
+
+    def _sync_folders(self, package, changed):
         writes = 0
         folders = {self.remote_root} if changed else set()
         for relative in package["files"] if changed else ():
@@ -525,28 +527,55 @@ class NativeLifecycle:
                     raise FlowError("Created native folder cannot be read back")
                 self._reconciled(ledger, record)
                 writes += 1
+        return writes
+
+    def _sync_file(self, relative, folder, package, conditions, for_rebind):
+        source = folder / relative
+        _unlinked(source)
+        with source.open("rb") as stream:
+            data = stream.read(_MAX_FILE + 1)
+        if len(data) > _MAX_FILE or hashlib.sha256(data).hexdigest() != package["files"][relative]:
+            raise FlowError("Local package changed during source sync")
+        remote = self.remote_root + "/" + relative
+        saved = self._object(remote)
+        self._check_sync_condition(relative, saved, conditions)
+        if saved == data:
+            return 0
+        if for_rebind and saved is not None:
+            raise FlowError("A rebinding target changed during staging; no conflicting file was overwritten")
+        _, ledger, record = self._write("file", self.ws + "/objects", data=data, headers={
+            "path": remote, "type": "FILE", "is-overwrite": str(saved is not None).lower(), "Content-Type": "application/octet-stream"},
+            extra={"remote_path": remote}, renew_reconciled=True,
+            identity_scope={"preconditions_sha256": canonical_hash(conditions)} if conditions is not None else None)
+        if self._object(remote, absent=False) != data:
+            raise FlowError("Uploaded native file failed exact byte readback; reconcile before retrying")
+        self._reconciled(ledger, record)
+        return 1
+
+    def sync_package(self, apply=False, for_rebind=False, expected_inventory=None):
+        package, folder = self._package()
+        conditions = self._sync_conditions(expected_inventory, package)
+        source_roots = []
+        if for_rebind:
+            current, _ = self._source_agent()
+            self._rebind_deployments()
+            self._rebind_guard()
+            source_roots = [str(PurePosixPath(current[field]).parent)
+                            for field in ("entryFilePath", "dependenciesFilePath")]
+            if self.remote_root in source_roots:
+                raise FlowError("Rebinding staging requires a separate code location; use normal sync for an unchanged root")
+        changed = self._sync_changes(package, source_roots, conditions, for_rebind)
+        if not apply:
+            return {"action": "sync-package", "applied": False, "files_to_write": changed,
+                    "package_sha256": package["package_sha256"], "remote_extra_files_checked": False}
+        self._reconcile()
+        if changed:
+            self._ownership(self._rows(self.ws + "/agents"), for_rebind=for_rebind)
+            self._guard()
+        writes = 0
+        writes += self._sync_folders(package, changed)
         for relative in changed:
-            source = folder / relative
-            _unlinked(source)
-            with source.open("rb") as stream:
-                data = stream.read(_MAX_FILE + 1)
-            if len(data) > _MAX_FILE or hashlib.sha256(data).hexdigest() != package["files"][relative]:
-                raise FlowError("Local package changed during source sync")
-            remote = self.remote_root + "/" + relative
-            saved = self._object(remote)
-            self._check_sync_condition(relative, saved, conditions)
-            if saved == data:
-                continue
-            if for_rebind and saved is not None:
-                raise FlowError("A rebinding target changed during staging; no conflicting file was overwritten")
-            _, ledger, record = self._write("file", self.ws + "/objects", data=data, headers={
-                "path": remote, "type": "FILE", "is-overwrite": str(saved is not None).lower(), "Content-Type": "application/octet-stream"},
-                extra={"remote_path": remote}, renew_reconciled=True,
-                identity_scope={"preconditions_sha256": canonical_hash(conditions)} if conditions is not None else None)
-            if self._object(remote, absent=False) != data:
-                raise FlowError("Uploaded native file failed exact byte readback; reconcile before retrying")
-            self._reconciled(ledger, record)
-            writes += 1
+            writes += self._sync_file(relative, folder, package, conditions, for_rebind)
         if self._package()[0]["package_sha256"] != package["package_sha256"]:
             raise FlowError("Local source changed during native sync")
         self._verify_package(package)
@@ -556,7 +585,37 @@ class NativeLifecycle:
                 "preconditions_checked": conditions is not None,
                 "file_count": package["file_count"], "package_sha256": package["package_sha256"], "remote_extra_files_checked": False}
 
+    def _rebind_readback_etag(self, current, before, tests, prod):
+        etag = None
+        latest, latest_headers = self._source_agent()
+        if ({key: latest[key] for key in before} != before or latest.get("version") != current.get("version")):
+            raise FlowError("Agent changed before rebinding; obtain a new plan")
+        observed = latest_headers.get("etag")
+        if observed is not None:
+            if not isinstance(observed, str) or not observed or len(observed) > 1000 or any(ord(c) < 32 for c in observed):
+                raise FlowError("Rebinding requires a valid observed agent ETag")
+            etag = observed
+        latest_tests, latest_prod = self._rebind_deployments()
+        if self._snapshot(latest_tests) != self._snapshot(tests) or self._snapshot(latest_prod) != self._snapshot(prod):
+            raise FlowError("Deployments changed before rebinding; obtain a new plan")
+        self._rebind_guard()
+        return etag
+
+    def _rebind_etag(self, headers, current, before, tests, prod, allow_no_etag, package):
+        etag = headers.get("etag")
+        if etag is not None and (not isinstance(etag, str) or not etag or len(etag) > 1000 or any(ord(c) < 32 for c in etag)):
+            raise FlowError("Rebinding requires a valid observed agent ETag")
+        if etag is None and not allow_no_etag:
+            raise FlowError("Agent ETag is absent; explicitly select --allow-no-etag for verified readback without atomic concurrency control")
+        self._ownership(self._rows(self.ws + "/agents"), for_rebind=True)
+        self._verify_package(package)
+        if etag is None:
+            etag = self._rebind_readback_etag(current, before, tests, prod)
+        return etag
+
     def rebind(self, apply=False, expected_binding=None, allow_no_etag=False):
+        if apply and self.metadata_root != self.remote_root:
+            raise FlowError("Rebinding apply requires metadata_root and remote_root to match for native TEST refresh")
         package, _ = self._package()
         current, headers = self._source_agent()
         before = {key: current[key] for key in self._binding()}
@@ -580,26 +639,7 @@ class NativeLifecycle:
             return {**result, "up_to_date": True, "test_refresh_required": True}
         if expected_binding != binding_hash:
             raise FlowError("Rebinding requires the current binding_sha256 from its read-only plan")
-        etag = headers.get("etag")
-        if etag is not None and (not isinstance(etag, str) or not etag or len(etag) > 1000 or any(ord(c) < 32 for c in etag)):
-            raise FlowError("Rebinding requires a valid observed agent ETag")
-        if etag is None and not allow_no_etag:
-            raise FlowError("Agent ETag is absent; explicitly select --allow-no-etag for verified readback without atomic concurrency control")
-        self._ownership(self._rows(self.ws + "/agents"), for_rebind=True)
-        self._verify_package(package)
-        if etag is None:
-            latest, latest_headers = self._source_agent()
-            if ({key: latest[key] for key in before} != before or latest.get("version") != current.get("version")):
-                raise FlowError("Agent changed before rebinding; obtain a new plan")
-            observed = latest_headers.get("etag")
-            if observed is not None:
-                if not isinstance(observed, str) or not observed or len(observed) > 1000 or any(ord(c) < 32 for c in observed):
-                    raise FlowError("Rebinding requires a valid observed agent ETag")
-                etag = observed
-            latest_tests, latest_prod = self._rebind_deployments()
-            if self._snapshot(latest_tests) != self._snapshot(tests) or self._snapshot(latest_prod) != self._snapshot(prod):
-                raise FlowError("Deployments changed before rebinding; obtain a new plan")
-            self._rebind_guard()
+        etag = self._rebind_etag(headers, current, before, tests, prod, allow_no_etag, package)
         result["concurrency_control"] = "etag" if etag else "explicit_readback_without_cas"
         payload = {key: after[key] for key in ("entryFilePath", "dependenciesFilePath")}
         _, ledger, record = self._write("rebind", self.ws + "/agents/" + self.agent_key,
@@ -716,6 +756,40 @@ class NativeLifecycle:
                 "operations": [{key: record[key] for key in ("kind", "state", "operation_key", "operation_status") if key in record}
                                for _, record in self._intents()], "native_test_accepted": False}
 
+    def _test_deployment_eligibility(self, kind, recover_failed, tests, prod):
+        if kind == "test-init" and tests:
+            raise FlowError("First TEST initialization requires no existing TEST deployments")
+        recovery = (recover_failed and kind == "test-refresh" and bool(tests)
+                    and all(item.get("lifecycleState") == "FAILED" for item in tests))
+        if kind == "test-refresh" and not any(item.get("lifecycleState") == "ACTIVE" for item in tests) and not recovery:
+            raise FlowError("TEST refresh requires an existing ACTIVE TEST deployment or explicit recovery of a known failed TEST")
+        if any(item.get("lifecycleState") == "CREATING" for item in tests + prod):
+            raise FlowError("A deployment is still creating; inspect status before another mutation")
+
+    def _deployment_eligibility(self, kind, apply, recover_failed, tests, prod, package):
+        self._test_deployment_eligibility(kind, recover_failed, tests, prod)
+        selected = "PROD" if kind == "publish" else "TEST"
+        if kind == "publish" and not any(item.get("lifecycleState") == "ACTIVE" for item in tests):
+            raise FlowError("Production publication requires an existing ACTIVE TEST candidate")
+        tested = self.state.get("test_receipt") == {"package_sha256": package["package_sha256"], "deployments": self._snapshot(tests)}
+        if kind == "publish" and apply and not tested:
+            raise FlowError("Current package has no reconciled ACTIVE TEST receipt; refresh and verify TEST before publication")
+        if kind == "publish" and apply:
+            require_publication_acceptance(self.root, self._snapshot(tests))
+        return selected, tested
+
+    def _deployment_request(self, kind, prod):
+        if kind == "publish":
+            path = self.ws + "/agents/" + self.agent_key + "/deployments/actions/" + ("redeploy" if prod else "deploy")
+            payload = {"agentKey": self.agent_key, "agentComputeKey": self.compute,
+                       "description": "Explicit project publication"}
+            if not prod:
+                payload["displayName"] = self.name
+        else:
+            path = self.ws + ("/actions/redeployAgentFlow" if kind == "test-init" else "/agentFlows/" + self.agent_key + "/deployments/actions/redeploy")
+            payload = {"agentFlowKey": self.agent_key, "agentFlowComputeKey": self.compute, "deploymentType": "TEST"}
+        return path, payload
+
     def _deploy(self, kind, apply, recover_failed=False):
         from .native_layout import require_layout
         self._agent()
@@ -726,22 +800,7 @@ class NativeLifecycle:
             self._reconcile()
             self._guard()
         tests, prod = self._deployments("TEST"), self._deployments("PROD")
-        if kind == "test-init" and tests:
-            raise FlowError("First TEST initialization requires no existing TEST deployments")
-        recovery = (recover_failed and kind == "test-refresh" and bool(tests)
-                    and all(item.get("lifecycleState") == "FAILED" for item in tests))
-        if kind == "test-refresh" and not any(item.get("lifecycleState") == "ACTIVE" for item in tests) and not recovery:
-            raise FlowError("TEST refresh requires an existing ACTIVE TEST deployment or explicit recovery of a known failed TEST")
-        if any(item.get("lifecycleState") == "CREATING" for item in tests + prod):
-            raise FlowError("A deployment is still creating; inspect status before another mutation")
-        selected = "PROD" if kind == "publish" else "TEST"
-        if kind == "publish" and not any(item.get("lifecycleState") == "ACTIVE" for item in tests):
-            raise FlowError("Production publication requires an existing ACTIVE TEST candidate")
-        tested = self.state.get("test_receipt") == {"package_sha256": package["package_sha256"], "deployments": self._snapshot(tests)}
-        if kind == "publish" and apply and not tested:
-            raise FlowError("Current package has no reconciled ACTIVE TEST receipt; refresh and verify TEST before publication")
-        if kind == "publish" and apply:
-            require_publication_acceptance(self.root, self._snapshot(tests))
+        selected, tested = self._deployment_eligibility(kind, apply, recover_failed, tests, prod, package)
         receipt = self.state.get(selected.lower() + "_receipt", {})
         rows = prod if selected == "PROD" else tests
         if receipt == {"package_sha256": package["package_sha256"], "deployments": self._snapshot(rows)}:
@@ -750,15 +809,7 @@ class NativeLifecycle:
         if not apply:
             return {"action": kind, "applied": False, "deployment_type": selected,
                     "package_sha256": package["package_sha256"], "test_package_verified": tested}
-        if kind == "publish":
-            path = self.ws + "/agents/" + self.agent_key + "/deployments/actions/" + ("redeploy" if prod else "deploy")
-            payload = {"agentKey": self.agent_key, "agentComputeKey": self.compute,
-                       "description": "Explicit project publication"}
-            if not prod:
-                payload["displayName"] = self.name
-        else:
-            path = self.ws + ("/actions/redeployAgentFlow" if kind == "test-init" else "/agentFlows/" + self.agent_key + "/deployments/actions/redeploy")
-            payload = {"agentFlowKey": self.agent_key, "agentFlowComputeKey": self.compute, "deploymentType": "TEST"}
+        path, payload = self._deployment_request(kind, prod)
         _, _, record = self._write(kind, path, payload=payload, legacy=kind != "publish", package=package["package_sha256"],
                                    extra={"prod_before": self._snapshot(prod), "deployment_before": self._snapshot(rows)},
                                    identity_scope={"deployment_before": self._snapshot(rows)})

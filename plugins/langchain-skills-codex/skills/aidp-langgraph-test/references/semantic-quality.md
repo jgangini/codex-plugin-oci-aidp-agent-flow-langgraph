@@ -270,3 +270,10 @@ must never be presented as the new agent's deployment or native acceptance.
 A complete supplied text can support a statement that it does not specify an attribute, without explicitly stating that omission. Inspect the whole text and observed metadata for a counterexample. Do not infer a denomination from geography or treat a currency symbol as an explicit currency name. Preserve literal excerpt validation. A snippet supports only claims about that snippet, not omission from an unseen complete document.
 
 Use prospective contrastive controls: justified bounded omission, invented value, unsupported global absence, and an explicitly present attribute. Keep a common supported context before varying the tested proposition; a dangling reference can create a separate editorial failure. Freeze labels before observing the judge and preserve failed calibration runs. A focused corrected pair does not retroactively approve a broader failed set or demonstrate population accuracy. Reassess the original saved answer separately from curated controls.
+
+When assessing an original agent receipt, a supplied `context.generation_identity`
+must match that receipt's package, config, engine, environment and mode, plus the
+original experiment's requested model settings. Hashing an independently reviewed
+context file alone does not establish that provenance. Omit unavailable generation
+identity rather than copying it from another run; such cases cannot establish
+frozen-generation stability.
