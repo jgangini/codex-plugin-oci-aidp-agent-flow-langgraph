@@ -11,6 +11,11 @@ Reuse an existing project harness when it already exposes the needed boundary;
 read [the executable contract](../aidp-agent-flow-langgraph/references/local-development.md)
 for the new runner. Use the project's existing requirements and acceptance checklist. A plugin-maintenance task does not authorize cloud tests.
 
+For repeated-answer quality, first use [semantic quality and calibration](references/semantic-quality.md).
+The executable quality commands evaluate frozen answers through the existing
+campaign/model. Keep mechanical completion, semantic criteria, calibration and
+native acceptance separate; there is no universal numeric similarity threshold.
+
 ## Choose the first useful test
 
 Read [the evaluation method](references/evaluation-method.md) when designing

@@ -1,7 +1,6 @@
 """Read saved experiment evidence; never invoke an agent or infer semantic success."""
-import hashlib
 
-from .progress import _path, _read
+from .progress import _path, _read_hashed
 from .project import FlowError, load_project, redact
 
 
@@ -24,8 +23,12 @@ def _controls(value, row):
             or type(item["timeout_seconds"]) is not int or not 1 <= item["timeout_seconds"] <= 600
             or not isinstance(item["requested_model_settings"], dict)):
         raise FlowError("Experiment execution controls are malformed")
-    if set(item["requested_model_settings"]) - {"model_id", "region", "max_tokens", "max_calls", "reasoning_effort"}:
+    if set(item["requested_model_settings"]) - {"model_id", "region", "max_tokens", "max_calls", "reasoning_effort", "read_timeout_seconds"}:
         raise FlowError("Experiment model settings contain unsupported fields")
+    settings = item["requested_model_settings"]
+    if "read_timeout_seconds" in settings and (
+            type(settings["read_timeout_seconds"]) is not int or not 1 <= settings["read_timeout_seconds"] <= 600):
+        raise FlowError("Experiment model read timeout is malformed")
     return {key: item[key] for key in fields}
 
 
@@ -59,7 +62,7 @@ def _valid_observation(row):
 
 def _receipt(root, reference):
     path = _path(root, reference)
-    value = _read(path)
+    value, digest = _read_hashed(path)
     if not isinstance(value, dict) or not isinstance(value.get("results"), list) or not 1 <= len(value["results"]) <= 100:
         raise FlowError("Experiment comparison requires a saved local-run receipt with 1 to 100 results")
     rows = {}
@@ -71,7 +74,7 @@ def _receipt(root, reference):
         _valid_identity(row)
         _valid_observation(row)
         rows[row["case_id"]] = {**row, "execution_controls": _controls(value, row)}
-    return rows, {"path": path.relative_to(root).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    return rows, {"path": path.relative_to(root).as_posix(), "sha256": digest}
 
 
 def _failure(row):
@@ -82,7 +85,7 @@ def _failure(row):
             "visited_nodes": row.get("visited_nodes", []), "model_calls": row.get("model_calls"),
             "duration_seconds": row.get("duration_seconds"),
             **{key: row.get(key) for key in ("failure_code", "failure_category", "next_action",
-                "provider_http_status", "provider_cause", "completed_model_responses", "stop_reason", "frontier")}}
+                "provider_http_status", "provider_cause", "completed_model_responses", "stop_reason", "frontier", "quality_validation_code", "quality_debug_artifact")}}
 
 
 def _layer(row):

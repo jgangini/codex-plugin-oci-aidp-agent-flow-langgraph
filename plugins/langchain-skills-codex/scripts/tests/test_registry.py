@@ -104,6 +104,64 @@ class RegistryTests(unittest.TestCase):
         self.client.inspect()
         return self.client.register(self.metadata_file, apply=True)
 
+    def public_card_response(self, *, status=200, content_type="application/json", raw=None):
+        card = {"name": "Synthetic support", "url": GATEWAY + "/agentendpoint/" + AGENT + "/a2a"}
+        return SimpleNamespace(status_code=status, headers={"Content-Type": content_type},
+            iter_content=Mock(return_value=[json.dumps(card).encode() if raw is None else raw]), close=Mock())
+
+    def test_public_card_observation_does_not_synthesize_normalized_inspection_or_ready(self):
+        response = self.public_card_response()
+        with patch.object(self.http, "request", return_value=response) as request:
+            result = self.client.inspect_card()
+        request.assert_called_once_with("GET", CARD, headers={"Accept": "application/json"},
+                                       timeout=(5, 30), allow_redirects=False, stream=True)
+        response.close.assert_called_once_with()
+        self.assertTrue(result["published_card_available"])
+        self.assertFalse(result["registry_ready"])
+        self.assertFalse(result["normalized_inspection_verified"])
+        self.assertFalse(result["agent_hub_invocation_verified"])
+        artifact = json.loads(Path(result["artifact"]).read_bytes())
+        self.assertIn("public_interface_contract", artifact)
+        self.assertNotIn("interface_contract", artifact)
+        _, journal, state = self.client._paths(self.client._binding())
+        self.assertFalse((journal / "inspection.json").exists())
+        self.assertFalse(state.exists())
+        with self.assertRaises(FlowError):
+            self.client._inspection(self.client._binding())
+
+    def test_public_card_rejects_unusable_foreign_or_credential_bearing_results(self):
+        bad_cards = [self.public_card_response(status=302), self.public_card_response(content_type="text/html"),
+                     self.public_card_response(raw=b"{"), self.public_card_response(raw=b"x" * (registry._MAX_JSON + 1)),
+                     self.public_card_response(raw=json.dumps({"url": GATEWAY + "/agentendpoint/" + OTHER + "/a2a"}).encode()),
+                     self.public_card_response(raw=json.dumps({"url": GATEWAY + "/agentendpoint/" + AGENT + "/a2a", "token": "private"}).encode())]
+        for response in bad_cards:
+            with self.subTest(status=response.status_code, content_type=response.headers["Content-Type"]):
+                with patch.object(self.http, "request", return_value=response), self.assertRaises(FlowError):
+                    self.client.inspect_card()
+                response.close.assert_called_once_with()
+        _, journal, _ = self.client._paths(self.client._binding())
+        self.assertFalse(journal.exists())
+
+    def test_public_card_rejects_deployment_change_during_read(self):
+        response = self.public_card_response()
+        before = self.client._binding()
+        with patch.object(self.client, "_binding", side_effect=[before, {**before, "deployment_key": "changed"}]), \
+                patch.object(self.http, "request", return_value=response), self.assertRaisesRegex(FlowError, "Publication changed"):
+            self.client.inspect_card()
+        response.close.assert_called_once_with()
+
+    def test_public_card_cli_routes_to_observation_only(self):
+        from aidp_agent_flow import cli
+        observer = Mock()
+        observer.inspect_card.return_value = {"registry_ready": False}
+        with patch.object(cli, "load_project", return_value=(self.root, self.config)), \
+                patch.object(registry, "Registry", return_value=observer):
+            result = cli.execute(cli.parser().parse_args(["--project", str(self.root), "registry", "inspect-card"]))
+        observer.inspect_card.assert_called_once_with()
+        observer.inspect.assert_not_called()
+        observer.adopt.assert_not_called()
+        self.assertFalse(result["registry_ready"])
+
     def test_inspect_uses_published_gateway_and_preserves_direct_interface(self):
         result = self.client.inspect()
         call = self.http.calls[-1]
@@ -344,6 +402,44 @@ class RegistryTests(unittest.TestCase):
             with self.assertRaises(FlowError):
                 self.client.register(self.metadata_file, apply=True)
         self.assertEqual(self.http.calls, [])
+
+    def test_portal_link_does_not_read_registry_or_require_publication(self):
+        self.config["native"]["agent_hub_url"] = "https://instanceagenthub.datalake.oci.oraclecloud.com/"
+        with patch.object(self.client, "status", side_effect=AssertionError("No readiness implied")):
+            result = self.client.portal_link()
+        self.assertFalse(result["registry_ready"])
+        self.assertFalse(result["client_invocation_verified"])
+        self.assertEqual(self.http.calls, [])
+        self.native._deployments.assert_not_called()
+
+    def test_readiness_rejects_test_only_even_with_valid_portal(self):
+        self.config["native"]["agent_hub_url"] = "https://instanceagenthub.datalake.oci.oraclecloud.com/"
+        self.native._deployments.return_value = []
+        result = self.client.readiness()
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["blockers"], ["published_endpoint_missing"])
+        self.native._deployments.assert_called_once_with("PROD")
+        self.assertFalse(result["agent_hub_invocation_verified"])
+
+    def test_readiness_rejects_published_but_unregistered_agent(self):
+        result = self.client.readiness()
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["blockers"], ["registration_or_adoption_required"])
+
+    def test_readiness_requires_real_active_registration_without_claiming_client_test(self):
+        self.client.inspect()
+        self.client.register(self.metadata_file, apply=True)
+        result = self.client.readiness()
+        self.assertTrue(result["passed"])
+        self.assertTrue(result["registry_ready"])
+        self.assertFalse(result["agent_hub_invocation_verified"])
+
+    def test_readiness_propagates_registration_drift(self):
+        self.client.inspect()
+        self.client.register(self.metadata_file, apply=True)
+        self.deployment["deploymentVersion"] = "changed"
+        with self.assertRaises(FlowError):
+            self.client.readiness()
 
     def test_hub_link_returns_only_configured_verified_portal_after_active_status(self):
         active = {"registered": True, "status": "ACTIVE", "readback_verified": True,

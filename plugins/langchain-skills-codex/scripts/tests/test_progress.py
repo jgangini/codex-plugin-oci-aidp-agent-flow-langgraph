@@ -505,6 +505,98 @@ class ProgressTests(unittest.TestCase):
         record_test_review(self.root, "respond", "native-positive", receipt, "accepted", "Node reviewed")
         return receipt
 
+    def declared_requirements_plan(self, *, policy="declared_requirements_v1", blocker=None, accept_native=True):
+        self.plan.update(version=2, revision=1, scope_decisions=[], publication_policy=policy,
+                         publication_policy_reason="Functional release uses all declared requirements and native integration")
+        self.plan["nodes"][0]["criteria"] = self.plan["nodes"][0]["criteria"][:1]
+        self.plan["nodes"][1]["implementation"] = "declared"
+        if blocker:
+            self.plan["nodes"][1]["blocker"] = blocker
+        self.plan["acceptance"] = [{"id": "integrated", "description": "Whole agent native functional rubric",
+                                    "layer": "TEST", "case_id": "native-positive"}]
+        self.write("node-progress.json", self.plan)
+        receipt = self.native()
+        self.local()
+        report = (record_test_review(self.root, "__agent__", "integrated", receipt, "accepted", "Functional integration reviewed")
+                  if accept_native else report_progress(self.root))
+        return receipt, report
+
+    def test_declared_policy_preserves_inventory_without_claiming_node_validation(self):
+        receipt, report = self.declared_requirements_plan()
+        self.assertTrue(report["publication_ready"])
+        self.assertFalse(report["scope_complete"])
+        self.assertEqual(report["nodes"][0]["state"], "local_validated")
+        self.assertEqual(report["nodes"][1]["state"], "unplanned")
+        self.assertIsNone(report["nodes"][1]["validation"]["percent"])
+        snapshot = json.loads((self.root / receipt).read_bytes())["deployment_snapshot"]
+        self.assertTrue(require_publication_acceptance(self.root, snapshot)["publication_ready"])
+        with self.assertRaisesRegex(FlowError, "different deployment"):
+            require_publication_acceptance(self.root, [{**snapshot[0], "deploymentVersion": 2}])
+
+    def test_explicit_strict_policy_still_requires_both_layers_for_each_node(self):
+        _, report = self.declared_requirements_plan(policy="strict_node_layers_v1")
+        self.assertFalse(report["publication_ready"])
+
+    def test_declared_policy_preserves_all_local_failures_as_blockers(self):
+        self.declared_requirements_plan()
+        self.local(passed=False, second=2)
+        self.assertFalse(report_progress(self.root)["publication_ready"])
+
+    def test_declared_policy_rejects_blocker_on_inventory_only_node(self):
+        _, report = self.declared_requirements_plan(blocker="Unresolved functional blocker")
+        self.assertFalse(report["publication_ready"])
+
+    def test_declared_policy_rejects_uninventoried_observed_node(self):
+        self.declared_requirements_plan()
+        self.local(second=2, visited=["respond", "foreign"])
+        report = report_progress(self.root)
+        self.assertFalse(report["publication_ready"])
+        self.assertEqual(report["unplanned_observed_nodes"], ["foreign"])
+
+    def test_declared_policy_rejects_stale_native_acceptance(self):
+        self.declared_requirements_plan()
+        target = self.root / "pyproject.toml"
+        target.write_text(target.read_text() + "\n# changed environment declaration\n")
+        self.assertFalse(report_progress(self.root)["publication_ready"])
+
+    def test_declared_policy_still_requires_explicit_native_integration_review(self):
+        _, report = self.declared_requirements_plan(accept_native=False)
+        self.assertFalse(report["publication_ready"])
+        self.assertEqual(report["agent_acceptance"]["state"], "pending")
+
+    def test_declared_policy_exclusions_never_earn_publication_credit(self):
+        receipt, _ = self.declared_requirements_plan()
+        self.plan["revision"] = 2
+        self.plan["scope_decisions"] = [{"revision": 2, "node_id": "respond", "criterion_id": "local-positive",
+                                         "state": "excluded", "reason": "Fixture exclusion",
+                                         "authorization_ref": "Fixture decision"}]
+        self.write("node-progress.json", self.plan)
+        self.local(second=2)
+        report = record_test_review(self.root, "__agent__", "integrated", receipt, "accepted", "Integration still reviewed")
+        self.assertFalse(report["publication_ready"])
+        self.assertTrue(report["publication_scope_blocked"])
+        self.assertEqual(report["nodes"][0]["criteria"][0]["state"], "excluded")
+
+    def test_publication_policy_selection_requires_version_two_and_known_mode(self):
+        for version, policy in ((1, "declared_requirements_v1"), (2, "unknown"), (2, []), (2, {}), (2, None)):
+            with self.subTest(version=version):
+                self.plan.update(version=version, publication_policy=policy)
+                if version == 2:
+                    self.plan.update(revision=1, scope_decisions=[])
+                self.write("node-progress.json", self.plan)
+                with self.assertRaises(FlowError):
+                    load_progress_plan(self.root)
+
+    def test_publication_policy_change_requires_new_revision_and_native_review(self):
+        receipt, _ = self.declared_requirements_plan()
+        self.plan["publication_policy"] = "strict_node_layers_v1"
+        self.write("node-progress.json", self.plan)
+        with self.assertRaises(FlowError):
+            report_progress(self.root)
+        self.plan["revision"] = 2
+        self.write("node-progress.json", self.plan)
+        self.assertFalse(report_progress(self.root)["publication_ready"])
+
     def test_publication_requires_agent_integration_not_only_node_percentages(self):
         receipt = self.ready_plan()
         report = report_progress(self.root)

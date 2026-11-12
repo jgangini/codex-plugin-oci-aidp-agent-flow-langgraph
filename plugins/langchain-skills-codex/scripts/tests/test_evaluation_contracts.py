@@ -80,6 +80,19 @@ def build_graph(runtime):
         self.assertTrue(result["passed"], result)
         self.assertEqual(len(result["cases"]), 1)
 
+    def test_explicit_model_read_timeout_is_retained_in_original_experiment_settings(self):
+        config=self.root / "aidp-agent.toml"
+        config.write_text(config.read_text(encoding="utf-8").replace("[model]", "[model]\nread_timeout_seconds = 120"), encoding="utf-8")
+        result=self.run_case({"id":"read-timeout-record", "input":{"question":"Review"},
+                              "assertions":[{"path":"answer","not_empty":True}]})
+        self.assertTrue(result["passed"], result)
+        receipt=json.loads(Path(result["artifact"]).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["experiments"][0]["requested_model_settings"]["read_timeout_seconds"],120)
+        from aidp_agent_flow.experiments import diagnose_experiment
+        diagnosis=diagnose_experiment(self.root,Path(result["artifact"]).relative_to(self.root).as_posix())
+        self.assertEqual(diagnosis["cases"][0]["identity"]["execution_controls"]["requested_model_settings"]["read_timeout_seconds"],120)
+
+
     def test_missing_null_and_json_type_mismatches_cannot_pass(self):
         cases = [({}, {"path": "missing", "equals": None}, False),
                  ({"field": None}, {"path": "field", "equals": None}, True),

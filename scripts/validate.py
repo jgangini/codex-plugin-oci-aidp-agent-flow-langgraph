@@ -24,8 +24,13 @@ def check_manifest():
     manifest = load_json(PLUGIN / ".codex-plugin" / "plugin.json")
     with (PLUGIN / "pyproject.toml").open("rb") as stream:
         package = tomllib.load(stream)
-    if manifest["version"] != package["project"]["version"]:
-        raise ValueError("Manifest and Python versions differ")
+    # Skills and executable have independent versions; the two engine identities must match.
+    engine = (PLUGIN / "scripts/aidp_agent_flow/__init__.py").read_text(encoding="utf-8")
+    match = re.search(r'__version__ = "([^"]+)"', engine)
+    if not match or match.group(1) != package["project"]["version"]:
+        raise ValueError("Python package and executable versions differ")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", manifest["version"]):
+        raise ValueError("Invalid plugin version")
     marketplace = load_json(ROOT / ".agents" / "plugins" / "marketplace.json")
     entry = marketplace["plugins"][0]
     if entry["name"] != manifest["name"] or (ROOT / entry["source"]["path"]).resolve() != PLUGIN:
@@ -75,6 +80,8 @@ def main():
     check_documentation()
     print(f"Distribution {version}: marketplace, skills, assets, upstream, corpus and local links OK", flush=True)
     if not args.package_only:
+        subprocess.run([sys.executable, "-m", "unittest", "discover", "-s",
+                        str(ROOT / "scripts/tests"), "-q"], check=True)
         (ROOT / "plugins" / "validation-work").mkdir(exist_ok=True)
         env = dict(os.environ, PYTHONPATH=str(PLUGIN / "scripts"))
         subprocess.run(

@@ -26,12 +26,15 @@ def parser():
     result.add_argument("--project", default=".", help="Project containing aidp-agent.toml")
     result.add_argument("--json", action="store_true", help="Emit stable JSON without provider exception bodies")
     commands = result.add_subparsers(dest="command", required=True)
+    from .workflow_status import register_parser
+    register_parser(commands)
     project = commands.add_parser("project", help="Prepare or adopt a local project")
     actions = project.add_subparsers(dest="action", required=True)
     create = actions.add_parser("init", help="Create a modular starter; default prepares its uv environment")
     create.add_argument("--path", required=True)
     create.add_argument("--name", required=True)
-    create.add_argument("--langgraph-version", default="1.0.1", help="Exact version verified for the target AIDP")
+    create.add_argument("--langgraph-version", help="Exact version consistent with the selected runtime profile")
+    create.add_argument("--runtime-profile", help="New projects default to aidp-managed-1.2.4; historical and custom profiles remain explicit")
     create.add_argument("--no-sync", action="store_true", help="Create files without dependency downloads")
     attach = actions.add_parser("adopt", help="Add configuration and local ignore rules; preserve agent code")
     for flag in ("factory", "entry", "dependencies"):
@@ -42,7 +45,8 @@ def parser():
     runtime = commands.add_parser("runtime", help="Compare observed runtime versions with documented Oracle support")
     check = runtime.add_subparsers(dest="action", required=True).add_parser("check")
     check.add_argument("--observations", help="Project-relative JSON containing candidate-bound TEST/PROD version observations")
-    check.add_argument("--require-profile", action="store_true", help="Fail unless local LangGraph matches the documented Oracle version")
+    check.add_argument("--runtime-profile", help="Override the project runtime profile for this check")
+    check.add_argument("--require-profile", action="store_true", help="Fail unless observed local packages match the selected runtime profile")
     check.add_argument("--require-parity", action="store_true", help="Fail unless TEST and PROD observations match this candidate and local versions")
     test = commands.add_parser("test", help="Run selected local node/graph experiments")
     test.add_argument("--cases", required=True, help="Reviewed case JSON; reference labels stay outside graph input")
@@ -52,6 +56,18 @@ def parser():
     test.add_argument("--timeout", type=int, default=120)
     test.add_argument("--max-steps", type=int, default=20)
     _experiment_arguments(test)
+    quality = commands.add_parser("quality", help="Grade saved answers and calibrate a judge without retrieval or application execution")
+    quality_actions = quality.add_subparsers(dest="action", required=True)
+    for mode in ("calibrate", "assess"):
+        grade = quality_actions.add_parser(mode)
+        grade.add_argument("--cases", required=True)
+        grade.add_argument("--case", action="append")
+        grade.add_argument("--real", action="store_true")
+        grade.add_argument("--timeout", type=int, default=120)
+        grade.add_argument("--plan", action="store_true")
+        if mode == "assess":
+            grade.add_argument("--calibration", required=True, help="Current reviewed calibration report; never a native acceptance")
+        _experiment_arguments(grade)
     campaign = commands.add_parser("campaign", help="Bound experiments, hypotheses, repetitions and accumulated reservations")
     actions = campaign.add_subparsers(dest="action", required=True)
     prepare_campaign = actions.add_parser("init", help="Install an explicit local experiment policy without cloud calls")
@@ -109,9 +125,20 @@ def parser():
     session = actions.add_parser("session")
     session.add_argument("--session", required=True)
     session.add_argument("--trace")
-    for action in ("sync", "ensure-agent", "test-init", "test-refresh", "status", "session-create", "publish"):
+    for action in ("sync", "ensure-agent", "test-init", "test-refresh", "status", "inspect-binding", "inspect-layout", "retire-agent", "prune-tree", "rebind", "session-create", "publish"):
         operation = actions.add_parser(action, help="Read/plan by default; mutations require --apply")
-        if action != "status":
+        if action == "prune-tree":
+            operation.add_argument("--definition", required=True)
+        if action == "sync":
+            operation.add_argument("--for-rebind", action="store_true", help="Stage a new code root without overwriting old or conflicting files")
+            operation.add_argument("--expected-inventory", help="Project-relative sealed before/target hashes for every existing package file")
+        if action == "test-refresh":
+            operation.add_argument("--recover-failed", action="store_true", help="Explicitly recover an existing terminal failed TEST; pending writes must already be reconciled")
+        if action in {"rebind", "retire-agent"}:
+            operation.add_argument("--expected-binding", help="binding_sha256 from the current read-only rebind plan")
+        if action == "rebind":
+            operation.add_argument("--allow-no-etag", action="store_true", help="Explicit readback-verified update without ETag; no atomic concurrency control")
+        if action not in {"status", "inspect-binding", "inspect-layout"}:
             operation.add_argument("--apply", action="store_true")
     invoke = actions.add_parser("invoke", help="Plan or explicitly invoke one reviewed native case")
     invoke.add_argument("--question-file", required=True)
@@ -126,7 +153,10 @@ def parser():
     listing = registry_actions.add_parser("list")
     listing.add_argument("--limit", type=int, default=100)
     registry_actions.add_parser("inspect")
+    registry_actions.add_parser("inspect-card", help="Observe the authenticated public card without granting normalized Registry inspection or readiness")
     registry_actions.add_parser("status")
+    registry_actions.add_parser("readiness", help="Fail unless this native agent has a published endpoint and verified ACTIVE Registry binding")
+    registry_actions.add_parser("portal-link", help="Return the verified configured portal URL without claiming agent readiness")
     registry_actions.add_parser("hub-link", help="Return the configured Agent Hub portal after ACTIVE Registry verification")
     adopt_registry = registry_actions.add_parser("adopt")
     adopt_registry.add_argument("--registry-key", required=True)
@@ -148,6 +178,7 @@ def capabilities():
             "node_validation_progress": "explicit_criteria_weighted_local_evidence_and_reviewed_TEST_separate_from_execution",
             "campaign_admission": "persistent_limits_and_hypotheses_required_for_paid_CLI_experiments_unknown_cost_is_explicit",
             "campaign_upgrade": "snapshot_bound_append_only_adoption_preserves_unknown_usage_and_requires_affected_revalidation",
+            "semantic_quality": "evidence_bound_posthoc_model_judge_finite_set_calibration_no_native_credit",
             "experiment_diagnosis": "saved_receipts_and_controlled_comparison_no_model_calls_or_semantic_acceptance",
             "criterion_progress": "explicit_gate_group_scope_case_evidence_and_staleness_not_project_effort",
             "reasoning_effort": "optional_sdk_validated_request_field_not_native_model_quality_acceptance",
@@ -156,12 +187,17 @@ def capabilities():
             "model_inventory": "regional_sdk_inventory_live_read_accepted_not_model_quality_ranking",
             "credential_create": "dedicated_runtime_created_and_native_consumed_rest_values_omitted",
             "native_metadata_reads": "documented_20260430_live_read_accepted",
+            "native_layout_acceptance": "exact_inventory_hash_and_metadata_gate_before_TEST_or_PROD_no_legacy_coexistence",
+            "native_agent_retirement": "explicit_exact_key_development_only_journaled_delete_preserves_compute",
+            "native_binding_inspection": "read_only_identity_and_path_drift_TEST_PROD_separate_not_migration_acceptance",
+            "native_rebind": "documented_UpdateAgent_inputs_only_journal_ETag_fixture_checks_not_live_acceptance",
             "test_refresh": "explicit_legacy_test_adapter_target_verified",
             "first_playground_initialization": "explicit_legacy_async_action_target_verified",
             "production_publish": "explicit_ga_deploy_redeploy_target_verified_after_test",
             "native_invocation": "scoped_gateway_sse_requires_reviewed_case_and_explicit_apply",
             "registry_registration": "explicit_legacy_aidp_a2a_inspect_register_active_readback_target_verified",
-            "agent_hub_portal_link": "configured_verified_portal_after_active_registry_readback_sign_in_required",
+            "agent_hub_portal_link": "verified_configured_navigation_separate_from_registry_readiness_sign_in_required",
+            "agent_hub_registry_readiness": "selected_published_endpoint_and_active_binding_not_client_acceptance",
             "runtime_compatibility": "documented_oracle_profile_and_candidate_bound_observation_comparison_not_certification"}
 
 
@@ -207,11 +243,12 @@ def campaign_command(args):
 
 
 def _campaign_invoke(args, lifecycle, root, config):
-    from .native_invoke import _question, invoke
+    from .native_invoke import invoke, preflight_invoke
     from .identity import execution_identity
-    question = _question(root, args.question_file)
+    question = preflight_invoke(lifecycle, args.question_file, surface=args.surface, session_key=args.session,
+                                expected=args.expect, timeout=args.timeout)["case"]
     policy = load_policy(root)
-    identity = {"question": question, "surface": args.surface, "expected": args.expect,
+    identity = {"question": question, "surface": args.surface, "expected": args.expect, "timeout_seconds": args.timeout,
                 "config": canonical_hash(config), "package": inspect_package(root)["package_sha256"],
                 "deployment": lifecycle.state.get(args.surface.lower() + "_receipt"), "evaluator": __version__, **execution_identity(root)}
     attempt = reserve_attempt(root, case_id=question["id"], experiment_sha256=canonical_hash(identity),
@@ -229,7 +266,7 @@ def _campaign_invoke(args, lifecycle, root, config):
 
 def runtime_command(args):
     from .compatibility import assess_runtime
-    root, _ = load_project(args.project)
+    root, config = load_project(args.project)
     observation = None
     if args.observations:
         relative = Path(args.observations)
@@ -245,18 +282,23 @@ def runtime_command(args):
         except (OSError, ValueError, UnicodeError):
             raise FlowError("Runtime observations must be a valid JSON document of at most 64 KiB") from None
     report = assess_runtime(doctor(root)["runtime_compatibility"]["local"], observation,
-                            inspect_package(root)["package_sha256"])
-    report["passed"] = ((not args.require_profile or report["local_profile_status"] == "documented_match")
+                            inspect_package(root)["package_sha256"],
+                            runtime_profile=args.runtime_profile or config.get("runtime", {}).get("profile"),
+                            langgraph_version=None if args.runtime_profile else config.get("runtime", {}).get("langgraph_version"))
+    report["passed"] = ((not args.require_profile or report["selected_profile_status"] == "target_match")
                         and (not args.require_parity or report["observed_shared_dependency_parity"]))
     report["required_checks"] = {"profile": args.require_profile, "parity": args.require_parity}
     return report
 
 
 def execute(args):
+    if args.command == "workflow":
+        from .workflow_status import command
+        return command(args)
     if args.command == "capabilities":
         return capabilities()
     if args.command == "project" and args.action == "init":
-        result = initialize(args.path, args.name, sync=not args.no_sync, langgraph_version=args.langgraph_version)
+        result = initialize(args.path, args.name, sync=not args.no_sync, langgraph_version=args.langgraph_version, runtime_profile=args.runtime_profile)
         result["campaign"] = initialize_campaign(args.path, "tests/campaign-policy.json")
         result["progress"] = try_report_progress(args.path)
         return result
@@ -272,6 +314,12 @@ def execute(args):
         return run_cases(args.project, args.cases, selected=args.case, real=args.real,
                          timeout=args.timeout, max_steps=args.max_steps, hypothesis=args.hypothesis,
                          evidence=args.evidence, repeat_reason=args.repeat_reason, require_campaign=True, plan=args.plan)
+    if args.command == "quality":
+        from .quality import run_quality
+        return run_quality(args.project, args.cases, mode=args.action, selected=args.case, real=args.real,
+                           timeout=args.timeout, hypothesis=args.hypothesis, evidence=args.evidence,
+                           repeat_reason=args.repeat_reason, plan=args.plan,
+                           calibration=getattr(args, "calibration", None))
     if args.command == "campaign":
         return campaign_command(args)
     if args.command == "experiment":
@@ -293,10 +341,14 @@ def execute(args):
         try:
             if args.action == "list":
                 return registry.list(args.limit)
+            if args.action == "inspect-card":
+                return registry.inspect_card()
             if args.action == "register":
                 return registry.register(args.metadata, apply=args.apply)
             if args.action == "adopt":
                 return registry.adopt(args.registry_key)
+            if args.action == "portal-link":
+                return registry.portal_link()
             if args.action == "hub-link":
                 return registry.hub_link()
             return getattr(registry, args.action)()
@@ -304,7 +356,7 @@ def execute(args):
             registry.close()
     lifecycle_actions = {"sync": "sync_package", "ensure-agent": "ensure_agent", "test-init": "test_init",
                          "test-refresh": "test_refresh", "status": "status", "session-create": "create_test_session",
-                         "publish": "publish"}
+                         "publish": "publish", "inspect-binding": "inspect_binding", "inspect-layout": "inspect_layout", "retire-agent": "retire_agent", "prune-tree": "prune_tree", "rebind": "rebind"}
     if args.command == "native" and args.action in {*lifecycle_actions, "invoke"}:
         from .native_lifecycle import NativeLifecycle
         lifecycle = NativeLifecycle(root, config)
@@ -317,8 +369,19 @@ def execute(args):
                 if (root / "node-progress.json").exists():
                     result["progress"] = try_report_progress(root)
                 return result
+            if args.action == "sync":
+                return lifecycle.sync_package(apply=args.apply, for_rebind=args.for_rebind,
+                    **({"expected_inventory": args.expected_inventory} if args.expected_inventory else {}))
+            if args.action == "prune-tree":
+                return lifecycle.prune_tree(args.definition, apply=args.apply)
+            if args.action == "retire-agent":
+                return lifecycle.retire_agent(apply=args.apply, expected_binding=args.expected_binding)
+            if args.action == "rebind":
+                return lifecycle.rebind(apply=args.apply, expected_binding=args.expected_binding, allow_no_etag=args.allow_no_etag)
+            if args.action == "test-refresh":
+                return lifecycle.test_refresh(apply=args.apply, recover_failed=args.recover_failed)
             operation = getattr(lifecycle, lifecycle_actions[args.action])
-            return operation() if args.action == "status" else operation(apply=args.apply)
+            return operation() if args.action in {"status", "inspect-binding", "inspect-layout"} else operation(apply=args.apply)
         finally:
             lifecycle.close()
     client = WorkbenchClient(root, config)
@@ -339,7 +402,9 @@ def main(argv=None):
         args = parser().parse_args(arguments)
         result = execute(args)
         success = result.get("passed", result.get("local_ready", True)) if isinstance(result, dict) else True
-        print(json.dumps({"ok": bool(success), "result": result}, ensure_ascii=False, indent=None if json_output else 2))
+        if args.command == "workflow":
+            success = result["observation_complete"]
+        print(json.dumps({"ok": bool(success), "result": result}, ensure_ascii=json_output, indent=None if json_output else 2))
         return 0 if success else 1
     except Exception as error:
         from .credential_store import CredentialStoreError

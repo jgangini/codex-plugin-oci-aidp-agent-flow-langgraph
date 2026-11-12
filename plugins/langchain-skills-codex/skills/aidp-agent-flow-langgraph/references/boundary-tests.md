@@ -105,6 +105,11 @@ partial answers. Check material limitations across state, schema and final text;
 a list field alone cannot prove the response communicates them. Keep mechanical
 invariants and reviewed semantic examples separate.
 
+Force rejection or absence of the synthesized result and inspect the deterministic
+assembly/fallback: preserve material qualifiers and limitations from admitted
+blocks in the delivered response. A generic fallback warning or retention only in
+nested state is not a substitute; exclude limits from rejected or withdrawn blocks.
+
 ## Runtime and evidence scope
 
 Compare the actual local interpreter/dependencies with the documented Oracle

@@ -17,7 +17,7 @@ uv pip install --python <versioned-engine-python> <absolute-reviewed-wheel-or-pl
 Record that absolute executable and engine hash in the project's existing runbook;
 keep using it for the selected campaign until explicit adoption. Do not overwrite a
 shared `uv tool` installation or its active environment during another campaign.
-The installed 0.4.8 package does not switch existing project executors automatically.
+Engine upgrades do not switch existing project executors automatically.
 Check `<versioned-engine-executable> --help` from the selected repository. Installation does not prepare another repository,
 create credentials or invoke a model. `capabilities` reports what is implemented
 and what remains a contract gap; these are separate from live acceptance.
@@ -41,8 +41,9 @@ CLI initialization also activates a bounded fixture-only campaign policy; read
 [campaigns](campaigns.md) before enabling paid experiments or adopting an existing
 project. Existing projects install a reviewed policy with `campaign init` once.
 `--no-sync` creates files without dependency downloads. `--langgraph-version`
-selects an exact target-compatible version; the default 1.0.1 follows current
-Oracle documentation, not a statement about every existing compute. Initial
+selects an exact target version. New projects default to the observed managed
+1.2.4 profile; `--runtime-profile` selects the historical or custom alternative.
+Verify the target and preserve existing projects' selections. Initial
 sync resolves a lockfile; later sync uses it in locked mode. It changes no native
 packages. The starter is not a completed sales/research agent.
 Use [runtime compatibility](runtime-compatibility.md) for the executable profile
@@ -224,3 +225,22 @@ prompt experiment or reopen unrelated accepted cases.
 - [OCI inference client](https://docs.oracle.com/en-us/iaas/tools/python/latest/api/generative_ai_inference/client/oci.generative_ai_inference.GenerativeAiInferenceClient.html): signed model calls from a selected config.
 - [LangGraph tests](https://docs.langchain.com/oss/python/langgraph/test): nodes and partial execution with checkpoint distinctions.
 - [LangGraph application structure](https://docs.langchain.com/oss/python/langgraph/application-structure): modular organization; LangSmith deployment configuration is not an AIDP requirement.
+
+
+## Model request read timeout
+
+The built-in OCI model adapter accepts `[model] read_timeout_seconds = 120` as an
+explicit project setting, from 1 to 600 integer seconds. The default remains 60;
+connection timeout stays 5 seconds. The experiment receipt retains an explicitly
+requested value with the model settings. This controls the SDK response read,
+separately from the whole-worker timeout and native SSE consumer timeout. External
+project factories own their transports and must verify their effective settings.
+Choose a worker budget that covers the requested call; no automatic retry, model
+change, calibration acceptance or remote cancellation follows from this setting.
+Preserve failed/unknown usage before a deliberately authorized new trial.
+See the [Oracle SDK timeout contract](https://docs.oracle.com/en-us/iaas/tools/python/latest/api/generative_ai_inference/client/oci.generative_ai_inference.GenerativeAiInferenceClient.html).
+
+
+## Counted project adapter retries
+
+A project-specific local adapter may retry confirmed HTTP 429 only above the counted call boundary: each attempt needs a new observation and request identifier, ordinary budget admission, bounded cancelable backoff, and retention of the failed attempt. SDK retries remain disabled when they would hide attempts. Do not retry ambiguous timeouts, malformed outputs or cancellations as throttling. Inspect native durable-effect recovery separately; local retries do not grant native AIDP parity or publication acceptance.

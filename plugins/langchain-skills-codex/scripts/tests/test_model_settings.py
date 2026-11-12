@@ -108,5 +108,25 @@ class ModelSettingsTests(unittest.TestCase):
         self.assertEqual(config["region"], "us-phoenix-1")
 
 
+
+    def test_read_timeout_is_bounded_and_reaches_sdk_without_enabling_retry(self):
+        for seconds in (1, 120, 600):
+            with self.subTest(seconds=seconds), \
+                    patch("oci.config.from_file", return_value={"region":"us-chicago-1"}), \
+                    patch("aidp_agent_flow.remote.signer_for", return_value=object()), \
+                    patch("oci.generative_ai_inference.GenerativeAiInferenceClient", return_value=self.client()) as factory:
+                model=OCIModel("unused-config","SELECTED",self.settings(read_timeout_seconds=seconds))
+                model._request("System","Question")
+                self.assertEqual(factory.call_args.kwargs["timeout"],(5,seconds))
+                self.assertIsInstance(factory.call_args.kwargs["retry_strategy"],oci.retry.NoneRetryStrategy)
+                self.assertEqual(model.calls,0)
+
+    def test_invalid_read_timeout_fails_before_authentication(self):
+        for value in (True, False, None, 0, -1, 601, 1.5, "120"):
+            with self.subTest(value=value), patch("oci.config.from_file") as config:
+                with self.assertRaisesRegex(FlowError,"read_timeout_seconds"):
+                    OCIModel("unused-config","SELECTED",self.settings(read_timeout_seconds=value))
+                config.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()

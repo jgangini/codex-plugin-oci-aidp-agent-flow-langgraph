@@ -1,6 +1,6 @@
 # OCI AIDP Agent Flow LangGraph para Codex
 
-Plugin **0.4.8** para crear, auditar y mejorar agentes LangGraph destinados a Oracle AI Data Platform (AIDP). Incluye skills para Codex y un CLI Python para preparar proyectos, probar nodos y recorridos, registrar evidencia y operar el ciclo nativo autorizado.
+Plugin **0.4.44** para crear, auditar y mejorar agentes LangGraph destinados a Oracle AI Data Platform (AIDP). Incluye skills para Codex y un CLI Python para preparar proyectos, probar nodos y recorridos, registrar evidencia y operar el ciclo nativo autorizado.
 
 **La forma de trabajo es:** definir el resultado esperado → desarrollar y probar localmente → aceptar la revisión en AIDP TEST → publicar esa revisión → registrar y comprobar el acceso en Agent Hub.
 
@@ -14,7 +14,7 @@ Este repositorio sigue la distribución de [AIDP Migration Workbench](https://gi
 | Preparar `.oci/config` y `.oci/key.pem` | [Credenciales y prerrequisitos](docs/prerrequisitos.md) |
 | Diseñar preguntas, corpus y criterios | [Corpus y pruebas](docs/corpus-y-pruebas.md) |
 | Pedir a Codex que cree o mejore un agente | [Prompts para copiar](docs/prompts.md) |
-| Entender los cambios y límites de 0.4.8 | [Notas de versión](docs/releases/v0.4.8.md) |
+| Entender los cambios y límites de 0.4.44 | [Notas de versión](docs/releases/v0.4.44.md) |
 | Mantener o contribuir al plugin | [Desarrollo del plugin](docs/desarrollo.md) |
 
 ## Instalación en Codex
@@ -28,7 +28,7 @@ codex plugin marketplace add jgangini/codex-plugin-oci-aidp-agent-flow-langgraph
 Para fijar la versión publicada:
 
 ```powershell
-codex plugin marketplace add jgangini/codex-plugin-oci-aidp-agent-flow-langgraph@v0.4.8
+codex plugin marketplace add jgangini/codex-plugin-oci-aidp-agent-flow-langgraph@v0.4.44
 ```
 
 En Codex abre la lista de plugins, instala **AIDP Agent Flow LangGraph** y comienza un chat nuevo para cargar sus skills. Si ya usas una instalación local del mismo plugin, elige una sola procedencia para evitar instrucciones duplicadas. No cambies el motor de una campaña activa sin revisar su adopción.

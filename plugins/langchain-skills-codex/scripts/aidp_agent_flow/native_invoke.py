@@ -15,10 +15,11 @@ from .native_lifecycle import NativeLifecycle, _key, _read_json, _unlinked
 from .project import FlowError, canonical_hash, private_json, redact
 
 
-_MAX_BYTES = 2 * 1024 * 1024
-_MAX_FRAME = 256 * 1024
+_MAX_BYTES = 32 * 1024 * 1024
+_MAX_FRAME = 4 * 1024 * 1024
+_MAX_CAPTURE = 2 * 1024 * 1024
 _MAX_EVENTS = 512
-_MAX_ANSWER = 20000
+_MAX_ANSWER = 128 * 1024
 
 
 class _StreamFailure(Exception):
@@ -109,10 +110,9 @@ def _endpoint(lifecycle, rows, surface):
     return next(iter(endpoints)), selected
 
 
-def _claim_case(artifact, record):
+def _check_case(artifact, record):
     if not artifact.exists():
-        private_json(artifact, record)
-        return
+        return None
     prior = _read_json(artifact)
     identity = ("target", "workspace", "agent_key", "surface", "case_id")
     if any(prior.get(key) != record[key] for key in identity):
@@ -128,6 +128,17 @@ def _claim_case(artifact, record):
     current = (record["deployment_key"], record["deployment_version"])
     if previous == current:
         raise FlowError("This native invocation case is already recorded for the same deployment")
+    history = artifact.parent / "history" / (canonical_hash(prior)[:32] + ".json")
+    if history.exists():
+        raise FlowError("This invocation revision transition is already recorded; reconcile before another start")
+    return prior
+
+
+def _claim_case(artifact, record):
+    prior = _check_case(artifact, record)
+    if prior is None:
+        private_json(artifact, record)
+        return
     history = artifact.parent / "history" / (canonical_hash(prior)[:32] + ".json")
     try:
         # Exclusive creation also claims this transition. A crash or competing
@@ -194,9 +205,42 @@ def _answer(output):
     return "\n".join(parts)
 
 
+def _client_event(event):
+    response = event.get("response")
+    if not isinstance(response, dict) or not isinstance(response.get("output"), list):
+        return event
+    if len(response["output"]) > 256:
+        raise _StreamFailure("output_shape")
+    output = []
+    for item in response["output"]:
+        if not isinstance(item, dict) or not isinstance(item.get("content"), list):
+            output.append(item)
+            continue
+        if len(item["content"]) > 256:
+            raise _StreamFailure("output_shape")
+        content = []
+        for part in item["content"]:
+            if isinstance(part, dict) and part.get("type") == "trace":
+                continue
+            if isinstance(part, dict) and part.get("type") == "output_text":
+                part = {key: value for key, value in part.items()
+                        if key not in {"spans", "resources", "startTime", "endTime", "parentSessionId"}}
+            content.append(part)
+        output.append({**item, "content": content})
+    return {**event, "response": {**response, "output": output}}
+
+
 def _consume(response, deadline, events):
     pending, data_lines, frame_bytes, total_bytes = bytearray(), [], 0, 0
     latest_output, errors, done, event_name, completion = None, 0, False, None, None
+    captured_bytes = 0
+
+    def append_event(captured):
+        nonlocal captured_bytes
+        captured_bytes += len(json.dumps(captured, ensure_ascii=True).encode("utf-8"))
+        if captured_bytes > _MAX_CAPTURE:
+            raise _StreamFailure("capture_limit")
+        events.append(captured)
 
     def finish_event():
         nonlocal latest_output, errors, done, completion
@@ -206,7 +250,7 @@ def _consume(response, deadline, events):
                     raise _StreamFailure("event_limit")
                 failed = "error" in event_name.lower() or event_name.lower().endswith((".failed", ".incomplete", ".canceled", ".cancelled"))
                 errors += int(failed)
-                events.append({"type": "stream_error" if failed else "sse_control", "sse_event": redact(event_name)})
+                append_event({"type": "stream_error" if failed else "sse_control", "sse_event": redact(event_name)})
             return
         data = b"\n".join(data_lines)
         if len(events) >= _MAX_EVENTS:
@@ -214,7 +258,7 @@ def _consume(response, deadline, events):
         if data.strip() == b"[DONE]":
             done = True
             completion = "done"
-            events.append({"type": "sse_done", "sse_event": redact(event_name)})
+            append_event({"type": "sse_done", "sse_event": redact(event_name)})
             return
         try:
             event = json.loads(data)
@@ -222,13 +266,14 @@ def _consume(response, deadline, events):
             raise _StreamFailure("invalid_event") from None
         if not isinstance(event, dict):
             raise _StreamFailure("invalid_event")
+        event = _client_event(event)
         framing_error = bool(event_name and ("error" in event_name.lower() or event_name.lower().endswith((".failed", ".incomplete", ".canceled", ".cancelled"))))
         failed = _event_error(event) or framing_error
         errors += int(failed)
         captured = {"type": "stream_error", "details": "[REDACTED]"} if failed else _safe_event(event)
         if event_name:
             captured["sse_event"] = redact(event_name)
-        events.append(captured)
+        append_event(captured)
         returned = event.get("response")
         if not failed and isinstance(returned, dict) and "output" in returned:
             latest_output = returned["output"]
@@ -285,19 +330,20 @@ def _consume(response, deadline, events):
         finish_event()
     if completion is None:
         raise _StreamFailure("incomplete_stream")
-    return _answer(latest_output) if latest_output is not None else "", errors, completion
+    try:
+        answer = _answer(latest_output) if latest_output is not None else ""
+    except _StreamFailure as error:
+        error.completion = completion
+        raise
+    return answer, errors, completion
 
 
-def invoke(lifecycle, question_file, *, surface="TEST", session_key=None, expected=None, timeout=90):
-    """POST once to the selected agent; keep answers/events in a private artifact.
-
-    Question JSON is ``{"id": "stable-case-id", "question": "..."}``.
-    Expected substrings are assertions only and are never sent to the agent.
-    """
+def preflight_invoke(lifecycle, question_file, *, surface="TEST", session_key=None, expected=None, timeout=90):
+    """Validate invocation inputs and native identity without claiming or dispatching."""
     if not isinstance(surface, str) or surface not in {"TEST", "PROD"}:
         raise FlowError("Invocation surface must be explicitly TEST or PROD")
-    if type(timeout) not in {int, float} or not math.isfinite(timeout) or not 1 <= timeout <= 300:
-        raise FlowError("Invocation timeout must be finite and between 1 and 300 seconds")
+    if type(timeout) not in {int, float} or not math.isfinite(timeout) or not 1 <= timeout <= 1800:
+        raise FlowError("Invocation timeout must be finite and between 1 and 1800 seconds")
     expected = [] if expected is None else expected
     if (not isinstance(expected, list) or len(expected) > 20
             or any(not isinstance(item, str) or not item or len(item) > 200 for item in expected)):
@@ -330,7 +376,7 @@ def invoke(lifecycle, question_file, *, surface="TEST", session_key=None, expect
     executor = execution_identity(lifecycle.root)
     record = {**identity, "state": "SUBMITTED", "evaluator_version": __version__, **executor,
               "environment_identity_scope": "local_test_harness_not_native_runtime",
-              "question_sha256": hashlib.sha256(case["question"].encode()).hexdigest(),
+              "question_sha256": hashlib.sha256(case["question"].encode()).hexdigest(), "timeout_seconds": timeout,
               "endpoint_sha256": hashlib.sha256(endpoint.encode()).hexdigest(), "session_key": session_key,
               "expected": expected, "deployment_key": _key(selected["key"]),
               "deployment_version": selected.get("deploymentVersion"),
@@ -338,6 +384,22 @@ def invoke(lifecycle, question_file, *, surface="TEST", session_key=None, expect
               "package_sha256": package_hash if package_verified else None,
               "package_binding_verified": package_verified,
               "package_binding_reason": None if package_verified else "no_matching_reconciled_receipt", **session_info}
+    _check_case(artifact, record)
+    return {"case": case, "endpoint": endpoint, "artifact": artifact, "record": record,
+            "session_info": session_info, "executor": executor}
+
+
+def invoke(lifecycle, question_file, *, surface="TEST", session_key=None, expected=None, timeout=90):
+    """POST once to the selected agent; keep answers/events in a private artifact.
+
+    Question JSON is ``{"id": "stable-case-id", "question": "..."}``.
+    Expected substrings are assertions only and are never sent to the agent.
+    """
+    prepared = preflight_invoke(lifecycle, question_file, surface=surface, session_key=session_key,
+                                expected=expected, timeout=timeout)
+    case, endpoint, artifact = prepared["case"], prepared["endpoint"], prepared["artifact"]
+    record, session_info, executor = prepared["record"], prepared["session_info"], prepared["executor"]
+    deployment_snapshot, session_key, expected = record["deployment_snapshot"], record["session_key"], record["expected"]
     _claim_case(artifact, record)
     headers = {"Accept": "text/event-stream", "Accept-Encoding": "identity", "x-deployment-type": surface}
     payload = {"isStreamEnabled": True, "input": [{"role": "user", "content": [{"type": "INPUT_TEXT", "text": case["question"]}]}], "metadata": {}}
@@ -355,6 +417,7 @@ def invoke(lifecycle, question_file, *, surface="TEST", session_key=None, expect
         answer, errors, completion = _consume(response, deadline, events)
     except _StreamFailure as error:
         failure = str(error)
+        completion = getattr(error, "completion", None)
     except Exception:
         failure = "transport_or_stream_failure"
     finally:

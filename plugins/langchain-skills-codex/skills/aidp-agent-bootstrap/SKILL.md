@@ -14,8 +14,8 @@ each node or prompt edit when the relevant environment is already verified.
 ## Local project entry point
 
 Resolve the project's pinned absolute CLI first and check `--version` and `--help`.
-For a new 0.4.8 setup, look for the versioned runtime under
-`~/.codex/runtimes/aidp-agent-flow/0.4.8/` (`Scripts/aidp-agent-flow.exe` on
+For a new 0.4.9 setup, look for the versioned runtime under
+`~/.codex/runtimes/aidp-agent-flow/0.4.9/` (`Scripts/aidp-agent-flow.exe` on
 Windows, `bin/aidp-agent-flow` on Unix); verify it rather than assuming it exists.
 A bare command on PATH may still select an older campaign's engine. Do not replace
 it or silently switch an existing campaign; follow the documented adoption check.
@@ -29,7 +29,8 @@ before any live check. Read [the executable contract](../aidp-agent-flow-langgra
 for exact flags, factory interface and limits. The helper supports a single-file
 or modular existing factory; it does not reconstruct business logic automatically.
 Run `runtime check --require-profile` to check the actual local LangGraph against
-the documented Oracle profile. Before native acceptance, read
+the selected target profile. New projects use the observed managed 1.2.4 profile;
+retain an explicit historical profile when that is the verified target. Before native acceptance, read
 [runtime compatibility](../aidp-agent-flow-langgraph/references/runtime-compatibility.md)
 to compare candidate-bound TEST/PROD observations. Unknown hosted versions remain
 unknown; the plugin does not certify Oracle compatibility or upgrade managed packages.
@@ -37,6 +38,11 @@ Read [model selection](../aidp-agent-flow-langgraph/references/model-selection.m
 before choosing a model; inventory the selected region and compare requirements.
 
 ## Establish the target
+
+Before choosing a new layout or reorganizing an adopted agent, read
+[agent structure and maintainable prompts](../aidp-agent-flow-langgraph/references/agent-structure.md).
+The starter is already modular; diagnose the actual authoring/package/entry boundary
+before recommending another structure or a self-contained export.
 
 Read the repository's guidance and existing environment scripts before changing
 anything. Identify its dependency/lock files, supported interpreter, CLI/helper,
@@ -120,3 +126,7 @@ for the edit/test lifecycle and [layered evaluation](../aidp-langgraph-test/SKIL
 for a failing behavior or acceptance design. Preserve the project's one checklist.
 Required native TEST closure, authorized production publication and Agent Hub
 acceptance are separate gates.
+
+For a single-agent layout already scoped by its product root, recommend a thin
+`agents/agent.py` entry with `agents/core/` as the importable package. Reuse suitable
+existing modules and follow the structure reference for versioned migrations.

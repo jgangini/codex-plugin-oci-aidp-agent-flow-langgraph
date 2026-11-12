@@ -37,6 +37,22 @@ class ExperimentTests(unittest.TestCase):
     def passed_row(self, **changes):
         return {**self.row, "passed": True, "assertions": [{"path": "answer", "passed": True}], **changes}
 
+    def test_saved_model_read_timeout_is_preserved_and_change_is_not_comparable(self):
+        first={**self.control,"requested_model_settings":{"reasoning_effort":"LOW","read_timeout_seconds":60}}
+        second={**self.control,"requested_model_settings":{"reasoning_effort":"LOW","read_timeout_seconds":120}}
+        self.write("before.json",[self.row],[first])
+        self.write("after.json",[self.passed_row()],[second])
+        self.assertEqual(compare_experiments(self.root,"before.json","after.json")["comparable_cases"],0)
+        diagnosis=diagnose_experiment(self.root,"after.json")
+        self.assertEqual(diagnosis["cases"][0]["identity"]["execution_controls"]["requested_model_settings"]["read_timeout_seconds"],120)
+
+    def test_malformed_saved_model_read_timeout_is_rejected(self):
+        for value in (True,None,0,601,"120"):
+            with self.subTest(value=value):
+                controls={**self.control,"requested_model_settings":{"read_timeout_seconds":value}}
+                self.write("bad-timeout.json",[self.passed_row()],[controls])
+                with self.assertRaises(FlowError):diagnose_experiment(self.root,"bad-timeout.json")
+
     def test_corrected_package_shows_assertion_gain_not_semantic_acceptance(self):
         self.write("before.json", [self.row])
         self.write("after.json", [self.passed_row(package_sha256="f" * 64)])

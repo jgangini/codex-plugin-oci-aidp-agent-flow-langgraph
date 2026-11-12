@@ -9,9 +9,9 @@ Tras instalar las skills en Codex, clona el repositorio para instalar su CLI. Ej
 ```powershell
 git clone https://github.com/jgangini/codex-plugin-oci-aidp-agent-flow-langgraph.git
 cd codex-plugin-oci-aidp-agent-flow-langgraph
-git checkout v0.4.8
+git checkout v0.4.44
 $Repo = (Get-Location).Path
-$Motor = Join-Path $HOME '.codex/runtimes/aidp-agent-flow/0.4.8'
+$Motor = Join-Path $HOME '.codex/runtimes/aidp-agent-flow/0.4.30'
 uv venv $Motor --python 3.11
 uv pip install --python "$Motor/Scripts/python.exe" "$Repo/plugins/langchain-skills-codex"
 $Flow = Join-Path $Motor 'Scripts/aidp-agent-flow.exe'
@@ -164,3 +164,23 @@ Adapta los metadatos antes de registrarlos. Publicar y registrar son pasos disti
 Trabaja en una rama o copia aislada. Inventaría archivos de entrada, dependencias, factory, prompts, herramientas, identidad, datos y despliegues. Usa `project adopt` cuando falte el contrato local; no lo uses encima de una configuración existente. Ese comando no reconstruye la lógica del agente ni descarga automáticamente su código de AIDP.
 
 Reproduce primero un recorrido que funcione; después aísla el fallo. No reinstales tablas, credenciales ni compute para corregir un prompt. Se admiten un `.py` o módulos/carpetas según las necesidades y el paquete soportado por el destino.
+
+## Estado y reutilización de evidencia
+
+`workflow status` reúne las observaciones locales; `workflow status --native`
+añade el estado nativo y Registry mediante consultas. Puede actualizar informes
+y recibos de conciliación locales, pero no publica ni inicia investigación.
+`observation_complete` sólo acredita que las consultas requeridas terminaron;
+hay que revisar cada sección para conocer bloqueos, operaciones pendientes y
+resultados. Registry listo no acredita una conversación útil en Agent Hub.
+
+Las nuevas pruebas por nodo pueden conservar su resultado después de un cambio
+en otro criterio del plan si coinciden el criterio, contexto del nodo, requisitos,
+política e historial de alcance, además de paquete, configuración, modelo, caso,
+motor y entorno. El informe identifica la reutilización y el plan original.
+No se reescriben recibos. Los recibos antiguos sin esa vinculación y la aceptación
+integrada final siguen exigiendo coincidencia del plan completo. Cambiar código
+o prompts sigue invalidando evidencia: no se presume aislamiento entre módulos.
+
+Consulta el [recorrido de iteración eficiente](../plugins/langchain-skills-codex/skills/aidp-agent-flow-langgraph/references/efficient-iteration.md)
+para pruebas parciales, reanudación y controles de calibración.

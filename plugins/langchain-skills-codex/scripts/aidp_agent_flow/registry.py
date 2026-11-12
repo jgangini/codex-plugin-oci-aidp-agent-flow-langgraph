@@ -184,11 +184,13 @@ class Registry:
         return {"agents": [self._summary(row) for row in rows], "complete": True, "pageCount": pages,
                 "agent_hub_invocation_verified": False}
 
-    def _binding(self):
+    def _binding(self, *, allow_unpublished=False):
         if self.native is None:
             self.native = NativeLifecycle(self.root, self.config, transport=self._session())
         self.native._agent()
         deployments = [row for row in self.native._deployments("PROD") if row.get("lifecycleState") == "ACTIVE"]
+        if not deployments and allow_unpublished:
+            return None
         if len(deployments) != 1:
             raise FlowError("Registry inspection requires exactly one ACTIVE production deployment")
         deployment = deployments[0]
@@ -243,6 +245,49 @@ class Registry:
             raise FlowError("Normalized agent card belongs to a different native endpoint")
         _nonsecret(interface)
         return copy.deepcopy(interface)
+
+    def inspect_card(self):
+        """Observe the public card without granting normalized Registry inspection."""
+        binding = self._binding()
+        response = None
+        try:
+            response = self._session().request("GET", binding["agent_card_url"],
+                headers={"Accept": "application/json"}, timeout=(5, 30),
+                allow_redirects=False, stream=True)
+            content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+            if response.status_code != 200 or content_type != "application/json":
+                raise FlowError("Published card GET failed; Registry inspection remains unverified")
+            raw = bytearray()
+            for chunk in response.iter_content(chunk_size=8192):
+                if len(raw) + len(chunk) > _MAX_JSON:
+                    raise FlowError("Published card exceeded its bounded size")
+                raw.extend(chunk)
+            card = json.loads(raw)
+            interface = self._interface({"kind": "a2a_aidp",
+                "agent_card_url": binding["agent_card_url"], "agent_card": card}, binding)
+            if self._binding() != binding:
+                raise FlowError("Publication changed while observing its card")
+            artifact = {"binding": binding, "public_interface_contract": interface,
+                        "source": "authenticated_public_card_get",
+                        "normalized_inspection_verified": False}
+            _, journal, _ = self._paths(binding)
+            path = journal / ("public-card-" + canonical_hash(artifact)[:16] + ".json")
+            if path.exists():
+                if _read_json(path) != artifact:
+                    raise FlowError("Immutable public card artifact differs")
+            else:
+                private_json(path, artifact)
+            return {"status": "observed", "artifact": str(path),
+                    "published_card_available": True, "registry_ready": False,
+                    "normalized_inspection_verified": False,
+                    "agent_hub_invocation_verified": False}
+        except FlowError:
+            raise
+        except Exception:
+            raise FlowError("Published card observation failed; Registry inspection remains unverified") from None
+        finally:
+            if response is not None:
+                response.close()
 
     def inspect(self):
         binding = self._binding()
@@ -319,11 +364,27 @@ class Registry:
         return {"registered": True, "registry_key": state["registry_key"], "version": state["version"],
                 "status": "ACTIVE", "readback_verified": True, "agent_hub_invocation_verified": False}
 
+    def readiness(self):
+        binding = self._binding(allow_unpublished=True)
+        if binding is None:
+            return {"passed": False, "registry_ready": False, "blockers": ["published_endpoint_missing"],
+                    "agent_hub_invocation_verified": False}
+        registered = self.status()
+        ready = (registered.get("registered") is True and registered.get("status") == "ACTIVE"
+                 and registered.get("readback_verified") is True)
+        return {"passed": ready, "registry_ready": ready,
+                "blockers": [] if ready else ["registration_or_adoption_required"],
+                "agent_hub_invocation_verified": False}
+
     def hub_link(self):
         registered = self.status()
         if (registered.get("registered") is not True or registered.get("status") != "ACTIVE"
                 or registered.get("readback_verified") is not True):
             raise FlowError("Agent Hub link requires a verified ACTIVE registration; register or explicitly adopt it first")
+        return {**self.portal_link(), "registry_key": registered["registry_key"],
+                "version": registered["version"], "registry_ready": True}
+
+    def portal_link(self):
         url = self.config.get("native", {}).get("agent_hub_url")
         if not isinstance(url, str) or not url:
             raise FlowError("Set native.agent_hub_url to the verified Agent Hub portal URL; it cannot be inferred from the platform or gateway")
@@ -345,8 +406,8 @@ class Registry:
                 raise ValueError()
         except (ValueError, UnicodeError):
             raise FlowError("native.agent_hub_url must be the verified HTTPS Oracle Agent Hub portal, with only optional tenant/domain fragment parameters") from None
-        return {"url": url, "link_type": "agent_hub_portal", "registry_key": registered["registry_key"],
-                "version": registered["version"], "authentication_required": True, "client_invocation_verified": False}
+        return {"url": url, "link_type": "agent_hub_portal", "registry_ready": False,
+                "authentication_required": True, "client_invocation_verified": False}
 
     def register(self, metadata_file, apply=False):
         metadata_path = Path(metadata_file).expanduser()

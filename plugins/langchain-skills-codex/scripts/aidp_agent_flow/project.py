@@ -86,12 +86,13 @@ def sync_project(root):
     return {"environment_ready": True, "lockfile": (root / "uv.lock").is_file()}
 
 
-def initialize(root, name, *, sync=True, langgraph_version="1.0.1"):
+def initialize(root, name, *, sync=True, langgraph_version=None, runtime_profile=None):
     root = Path(root).resolve()
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9 _-]{0,79}", name):
         raise FlowError("Use a short project name containing letters, digits, spaces, hyphens or underscores")
-    if not re.fullmatch(r"\d+\.\d+\.\d+", langgraph_version):
-        raise FlowError("Select an exact verified LangGraph version")
+    from .compatibility import select_profile
+    selected = select_profile(runtime_profile, langgraph_version, new_project=True)
+    langgraph_version = selected["langgraph"]
     if root.exists() and (not root.is_dir() or any(root.iterdir())):
         raise FlowError("Initialization requires a new or empty directory; existing files were preserved")
     root.mkdir(parents=True, exist_ok=True)
@@ -104,12 +105,21 @@ def initialize(root, name, *, sync=True, langgraph_version="1.0.1"):
         text = text.replace("@@LANGGRAPH_VERSION@@", langgraph_version)
         with target.open("x", encoding="utf-8") as stream:
             stream.write(text)
+    with (root / "aidp-agent.toml").open("a", encoding="utf-8") as stream:
+        stream.write("\n[runtime]\nprofile = " + json.dumps(selected["id"]) + "\nlanggraph_version = " + json.dumps(langgraph_version) + "\n")
+    extra = {key: value for key, value in selected["packages"].items() if key != "langgraph"}
+    if extra:
+        constraints = [key + "==" + value for key, value in extra.items()]
+        with (root / "pyproject.toml").open("a", encoding="utf-8") as stream:
+            stream.write("\nconstraint-dependencies = " + json.dumps(constraints) + "\n")
+        with (root / "agent/requirements.txt").open("a", encoding="utf-8") as stream:
+            stream.write("\n" + "\n".join(constraints) + "\n")
     boundary = Path(__file__).with_name("model_boundary.py")
     shutil.copyfile(boundary, root / "agent/core/model_boundary.py")
     from .compatibility import documented_status
     result = {"project_created": True, "native_binding_ready": False,
               "model_test_performed": False, "langgraph_version": langgraph_version,
-              "runtime_profile_status": documented_status(langgraph_version), "oracle_certified": False}
+              "runtime_profile_status": documented_status(langgraph_version), "selected_profile": selected["id"], "oracle_certified": False}
     if sync:
         result.update(sync_project(root))
     return result
@@ -146,7 +156,7 @@ def adopt(root, factory, entry, dependencies, python_dir="."):
 
 
 def doctor(root):
-    from .compatibility import assess_runtime, observe_local
+    from .compatibility import assess_runtime, observe_local, observe_capabilities
     root, config = load_project(root)
     environment = root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     observation = observe_local(environment)
@@ -154,8 +164,9 @@ def doctor(root):
     path = Path(config.get("oci", {}).get("config_file", ".oci/config")).expanduser()
     if not path.is_absolute():
         path = root / path
-    return {"local_ready": all(name in versions for name in ("langgraph", "oci")),
-            "versions": versions, "runtime_compatibility": assess_runtime(observation),
+    capabilities = observe_capabilities(environment)
+    return {"runtime_capabilities": capabilities, "local_ready": all(name in versions for name in ("langgraph", "oci")),
+            "versions": versions, "runtime_compatibility": assess_runtime(observation, runtime_profile=config.get("runtime", {}).get("profile"), langgraph_version=config.get("runtime", {}).get("langgraph_version")),
             "uv_available": bool(shutil.which("uv")),
             "oci_config_present": path.is_file(), "auth_checked": False, "native_test_accepted": False,
             "model_selected": bool(config.get("model", {}).get("model_id"))}

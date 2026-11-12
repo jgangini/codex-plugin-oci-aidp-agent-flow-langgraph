@@ -5,6 +5,26 @@ description: Develop, adapt and debug Oracle AIDP LangGraph agents with verified
 
 # AIDP Agent Flow LangGraph
 
+For architecture/layout diagnosis, packaging changes or prompt organization, read
+[agent structure and maintainable prompts](references/agent-structure.md) first.
+For an existing installation with path drift, first use the read-only
+`native inspect-binding` command in [native CLI acceptance](references/native-cli.md#inspect-an-existing-installation-before-changing-paths).
+Before declaring deployment layout complete, run `native inspect-layout` from
+the owning package project. Extra obsolete code or folders and a separate metadata
+root are failures even if TEST is ACTIVE and the required files match. Use the
+explicit development replacement and inventoried pruning route in native-cli.md
+when authorized; keep recovery source outside the executable tree.
+Distinguish metadata location from code inputs; do not bypass strict lifecycle
+guards or infer an agent metadata object from a matching folder name.
+For an authorized change of executable roots, use the verified CLI
+`native rebind` plan and explicit `sync --for-rebind` staging from that guide.
+Retain the observed metadata location and coordinate project-owned installer
+recovery; rebinding code inputs does not move CODE metadata or accept TEST.
+Trace the files actually executed, prefer a thin AIDP entry with ordinary modules,
+use `core/` as the default package convention, and keep instructions readable
+beside their consumer. The name is a plugin convention, not an Oracle requirement. Treat folder changes as
+versioned migrations when inventories, fingerprints or recovery depend on paths.
+
 Before claiming local/native compatibility, use the
 [runtime profile check](references/runtime-compatibility.md). It compares installed
 versions and candidate-bound observations; unknown native versions are not accepted
@@ -104,7 +124,29 @@ and use its supported UI without guessing endpoints or repeating failed payloads
 Return to CLI for the remaining verified operations. Read the Playground revision
 section in `development-loop.md` before refreshing a packaged development agent.
 
+## Agent Hub destination
+
+When asked to publish or test through Agent Hub, read [Registry and portal
+contracts](references/registry.md). Resolve a previously verified portal link
+through CLI/project outputs, then use Browser for the requested client conversation.
+Check `registry readiness` for the selected native identity after publication or
+replacement; TEST ACTIVE and a portal URL do not establish availability. If the
+Registry inspection service fails after redeployment, use `registry inspect-card`
+for a bounded authenticated public-card diagnostic. It cannot replace normalized
+inspection or grant readiness; do not redeploy again or strip contract differences
+merely to satisfy that auxiliary check. Preserve
+existing publication authorization and TEST gates. Do not declare this destination
+closed until its published binding, ACTIVE registration and readable actual conversation
+with a successful domain result are verified; registration and navigation remain separate from client acceptance.
+
 ## Keep development progress comparable
+
+Before repeating an integrated run or resuming publication, use
+[efficient iteration](references/efficient-iteration.md) to select the smallest
+affected test, resume the existing owner operation and distinguish observed
+publication, client and quality states. Turn reviewed incidents into contrastive
+calibration controls through the existing evaluator; do not invent thresholds.
+
 
 Use the TEST skill's [working modes](../aidp-langgraph-test/references/evaluation-method.md#working-mode-and-evaluator-readiness)
 to separate a frozen benchmark from a focused repair. Before reporting progress

@@ -1,33 +1,67 @@
-# Oracle-supported profile and observed runtime parity
+# Selected runtime profiles and observed native parity
 
 Oracle's [agent creation documentation](https://docs.oracle.com/en/cloud/paas/ai-data-platform/aidug/agent-creation.html)
-lists **LangGraph 1.0.1** as supported (reviewed 2026-11-02). The starter pins
-that exact version in local and packaged dependency files. This is a documented
-support profile, not certification of this plugin or of all transitive packages.
-Existing projects and managed compute are not upgraded or downgraded by this check.
+still lists LangGraph 1.0.1 (rechecked 2026-11-08). The selected tenant instead
+requires LangGraph 1.2.4, checkpoint 4.1.1 and prebuilt 1.1.0, as established by
+managed package requirements and a restored native runtime probe. These are
+different evidence sources; neither establishes universal Oracle certification.
 
-## Local check
+## Engine 0.4.9 profile selection
 
-```text
-aidp-agent-flow --project <project> --json doctor
-aidp-agent-flow --project <project> --json runtime check --require-profile
+New projects default to `aidp-managed-1.2.4`, the observed target profile. Verify
+each target before using that default. `oracle-aidp-langgraph-1.0.1` remains an
+explicit historical profile; `custom` requires an exact version. Existing projects
+with no runtime selection retain their historical interpretation, without rewriting
+dependencies, evidence or receipts. Select this project's managed target explicitly:
+
+```toml
+[runtime]
+profile = "aidp-managed-1.2.4"
+langgraph_version = "1.2.4"
 ```
 
-The selected project's interpreter supplies Python and distribution metadata in
-an isolated subprocess, without importing agent code or making network calls.
-The profile gate checks installed LangGraph against 1.0.1, not a version declared
-but never installed. A missing environment is unknown; a different version is
-outside the documented profile, not proof that every API fails. Explicit custom
-versions remain available for separately verified targets. The plugin's own
-environment is distinct from the agent's environment.
+`project init --runtime-profile <id>` and `runtime check --runtime-profile <id>`
+share profile resolution with `doctor`. A contradictory explicit version or unknown
+profile fails. `--require-profile` checks the selected profile's installed packages,
+not a requirements declaration. The managed profile requires the three versions
+above; absent versions are unknown, mismatches fail the required gate.
+`local_profile_status` continues to report the historical documentary comparison;
+`selected_profile_status` reports the selected target separately. Matching a target
+does not change the public documentation or establish native functional acceptance.
 
-Preserve a reviewed project lockfile. If the environment differs, diagnose the
-required APIs and approved target before changing dependencies. Oracle does not
-document an entire transitive lock in this profile; do not label arbitrary
-LangChain, OCI SDK or Python versions Oracle-certified. Current LangGraph
-[`timeout=` and node-level `error_handler=` require >=1.2](https://docs.langchain.com/oss/python/langgraph/fault-tolerance).
-Do not copy those examples into the 1.0.1 baseline without a verified compatible
-alternative or a separately supported target.
+Inspect actual dependency requirements and run the environment's consistency check
+before native acceptance. Never downgrade platform libraries merely to satisfy a
+documentary gate. `doctor` and version comparison inspect metadata; they do not
+perform `pip check`. Additional managed distributions are recorded as observations,
+not instructions to install the managed AIDP runtime locally. Historical observation
+files preserve their shared-package comparison. Selecting the managed profile adds
+prebuilt to its required parity set; missing historical data remains unknown.
+
+## Capabilities available in the selected environment
+
+`doctor` reports `runtime_capabilities` by inspecting installed APIs in an isolated
+process. API presence has `executed_probe=false`: it is not behavioral or native
+acceptance. Unknown environments do not claim support. Before adopting a feature,
+exercise its behavior in the project's installed version and on the affected native
+integration boundary. Current upstream docs may describe APIs newer than 1.2.4.
+
+The official [fault-tolerance guide](https://docs.langchain.com/oss/python/langgraph/fault-tolerance)
+requires LangGraph >=1.2 for node timeouts, typed error handlers, graph defaults
+and cooperative draining. Node timeouts require async nodes. Engine regressions
+exercise a timed-out async node, discarded attempt output, typed handler delivery
+and absence of automatic retries. Historical runtimes skip only unsupported
+feature tests; their profile, initialization and fixture regressions still run.
+
+Test transient failure/retry exhaustion, timeout, checkpoint/resume and uncertain
+external outcomes separately. A timeout does not prove a remote effect was absent.
+Use the project's durable effect records before retrying. Do not enable retries,
+global handlers or caching merely because the new API exists. A handler must not
+turn an unresolved operation or unverified answer into a successful result.
+
+Evaluate decision, trajectory and final response using the existing TEST guide.
+Those evaluation techniques are framework-agnostic, not features introduced in
+1.2.4. See [LangChain agent evaluation](https://docs.langchain.com/langsmith/evaluate-complex-agent)
+and [LangGraph testing](https://docs.langchain.com/oss/python/langgraph/test).
 
 ## Native observations
 
@@ -69,10 +103,13 @@ aidp-agent-flow --project <project> --json runtime check --observations runtime-
 ```
 
 Without required flags this is an informative report, including unknowns.
-`--require-profile` fails unless local LangGraph matches the documented profile.
-`--require-parity` additionally requires **both TEST and PROD** to match the
-current package, Python major/minor and exact shared distribution versions
-(LangGraph, langchain-core, langgraph-checkpoint, OCI SDK). Use that full check
+`--require-profile` requires `selected_profile_status=target_match`; it checks
+the managed trio, the historical LangGraph version or the explicit custom version
+according to the selected profile. The documentary status remains separate and
+can still be `outside_documented_profile` for a passing managed target.
+`--require-parity` requires **both TEST and PROD** to match the current candidate,
+Python major/minor and exact shared package versions. Managed selection includes
+prebuilt; historical selection preserves its previous shared-package set. Use it
 after production verification; absence of PROD before publication is expected
 and must not be fabricated to satisfy it. Before publication, inspect the TEST
 entry and perform its functional acceptance separately.

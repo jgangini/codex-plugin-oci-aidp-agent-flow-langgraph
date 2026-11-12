@@ -144,6 +144,70 @@ They are not claimed as GA `20260430/aiDataPlatforms` Registry endpoints.
   documents authenticated card discovery and the separate published-card scope.
 - [Oracle GA REST endpoint index](https://docs.oracle.com/en/cloud/paas/ai-data-platform/aiwap/rest-endpoints.html)
   documents deployment/card operations; card updates are not Registry registration.
+- [Engineering registration investigation](https://oracle.enterprise.slack.com/archives/C08K54LPT9C/p1785941889640039)
+  supplied the observed Registry routes and inspection envelope.
+- [Engineering diagnosis of duplicate interface nesting](https://oracle.enterprise.slack.com/archives/C08K54LPT9C/p1785967830753359)
+  explains the rejected wrapper and why the normalized contract must be preserved.
 
 No customer identifiers, captured authentication headers or other agents' card
 content from that investigation belong in generated projects or reusable code.
+
+## Resolve navigation separately from destination acceptance
+
+`registry portal-link` validates and returns the already verified configured
+`native.agent_hub_url` without querying Registry, requiring a production endpoint,
+or claiming that the selected agent is available. Reuse a verified deployment
+output or project resolver to configure that URL; do not navigate the administrative
+UI repeatedly to discover it. Never persist sign-in redirect tokens as portal URLs.
+Browser is used for the requested client conversation, not repetitive registration.
+
+`registry readiness` checks the selected native identity and published endpoint,
+then the pinned ACTIVE Registry binding. A missing publication or registration
+returns `passed: false`, blockers and a nonzero CLI exit status. Transport errors,
+ambiguous publications and stale/foreign bindings remain errors. A successful
+result covers Registry readiness only; it always leaves the client conversation
+unverified. The portal URL, ACTIVE TEST, and a completed file upload are insufficient.
+
+When the requested publication destination is Agent Hub, close these boundaries
+in order: existing candidate TEST acceptance; explicitly authorized publication;
+terminal deployment reconciliation; card inspection; registration or adoption;
+ACTIVE binding readback; and the actual authorized client conversation. Preserve
+the existing TEST, campaign and publication gates. Do not report destination success
+after a plan, submitted/pending operation, portal-link delivery or registration alone.
+Use the existing publish/inspect/register/adopt operations rather than new API routes.
+
+After a same-agent redeployment, re-inspect and adopt only when the existing
+identity and normalized card still match. A clean CODE replacement creates a new
+native identity: neither a previous registration nor its client acceptance transfers.
+Reconcile any existing name collision; do not silently create a duplicate or reassign
+an old Registry key to a new agent. Deploy Studio email navigation does not prove
+that its hooks performed publication or registration; inspect the actual hook contract.
+
+## Verify user-facing content, not only portal completion
+
+A portal's Completed indicator proves transport/task closure, not business success.
+Inspect the selected conversation's final domain result, references and failure
+state. Keep distinct conversation/request identities when a user reports an error
+and another test passed; inspect saved evidence before retrying paid research.
+
+A chat client may concatenate AIMessage content. Do not expose transport envelopes,
+heartbeats, revision IDs or editable draft packets as the final chat report. Verify
+a readable presentation separately from the structured API protocol, preserve final
+references/limits/material artifacts, and test long waits and connection closure.
+Use an explicit, documented format contract; do not guess Agent Hub from subject,
+thread, trace or streaming flags. Retain the machine protocol for clients that
+request it and verify a real client conversation after redeploy/readiness.
+
+## Diagnose a public card when Registry inspection fails
+
+`registry inspect-card` performs one signed GET of the selected publication's
+canonical A2A card, with redirects disabled, bounded bytes and deadline, exact
+agent URL validation and publication readback. It saves a separate public-card
+artifact. It never creates `inspection.json`, changes a registration or grants
+readiness. The raw gateway card may differ from the Registry service's normalized
+card (including an internal URL and optional authentication extension). Do not
+remove those differences or import the raw artifact as a normalized inspection.
+A failed `inspect-a2a` is an inspection-service failure, not proof that Hub cannot
+invoke an existing ACTIVE registration; verify the requested conversation separately.
+Re-adoption remains pending until a current normalized inspection can be verified.
+Source: [Oracle published agent cards](https://docs.oracle.com/en/cloud/paas/ai-data-platform/aidug/agent-flow-deployment.html).

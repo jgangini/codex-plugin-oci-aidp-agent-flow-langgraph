@@ -161,3 +161,71 @@ one bounded correction, not a parallel full-agent rewrite.
 These sources guide design and evaluation. They do not certify the user's
 agent, guarantee semantic correctness, authorize effects, or replace the
 project's requirements and native acceptance.
+
+
+## Concurrent sources and durable evidence
+
+Group labels express policies; they do not create independent execution. A group
+with sequential sources still makes one network wait for another. Use task-local
+queries, a global admission cap and verified-result streaming for independent work.
+Before fan-out, inspect mutable cursors, selectors, model admission and external
+stores: graph reducers alone do not merge stale Object Storage snapshots. Preserve
+CAS admission, global shared budgets, source/effect identities and uncertain calls.
+Test out-of-order completion, a pending sibling after refinement reservation,
+same-operation replay and cleanup on every propagated error, not only cancellation.
+
+When adding an experiment setting, exercise producer-to-saved-reader and quality
+report closure. A successful model call is not a successfully closed calibration.
+Keep transport errors separate from semantic failures, preserve costs and prior
+receipts, and adopt an executor only at a safe campaign boundary.
+
+## Preserve scope in fallback delivery
+
+Audit the actual final text after rejection, selective repair and fallback, not
+only the successful synthesis. Verified blocks can retain facts while losing the
+period and source scope that the synthesis would have supplied. Prefer a small
+deterministic rendering correction from validated state for these metadata;
+do not add more model calls or weaken factual review to recover them.
+
+Distinguish a publication filter, a configured retrieval window and a historical
+reporting period. They may differ, especially for documentary or financial work.
+Label each according to its real contract, preserve original fact dates and avoid
+claiming planned sources were successfully retrieved. Test no, partial and full
+retention, text bounds, final streamed text and replay equivalence. Keep original
+trial receipts unchanged and label a controlled rendering replay as such; it is
+not a new full agent generation or native acceptance.
+
+When a judge times out, preserve the failed attempt and its unknown cost. Check
+the SDK read timeout separately from the worker timeout; set an explicit bounded
+margin from observed work outside the frozen batch, then recalibrate the changed
+configuration. Do not classify a transport timeout as a wrong factual answer.
+
+Check attribution scope in grouped sentences: a list of named authors does not
+transfer one source's exclusive detail to all of them. Use a common-core positive
+control and a minimally changed overgeneralized negative control. Inspect literal
+sources before correcting a curated label, preserve the failed calibration, and
+do not call a confirmed attribution defect a false rejection merely because a
+previous judge accepted it. Distinguish finite control agreement from general
+quality; do not hide judge disagreements or technical exclusions.
+
+## Focused node tests with one code identity
+
+For a demonstrated final-decision defect, reuse sealed preconditions and test the
+responsible node before repeating intake, retrieval and unrelated decisions. Use
+the application's shared ask/contract boundary, including schema conversion,
+evidence restrictions and result normalization; calling a lower-level model
+adapter directly can test a different contract. Declare node-only scope, count
+failed probes and never grant full-graph, streaming-client or native acceptance.
+
+Tie the executed-module inventory to the validated entry's own manifest. A hash
+on a second configurable inventory does not prove that it belongs to that entry.
+Reject mismatched candidates before model admission. Test correct inventory,
+cross-candidate inventory and changed content. Preserve old code and receipts;
+retrospective provenance checks do not mean a new guard ran in the old trial.
+
+Keep post-hoc judge settings frozen when comparing saved generations. Use the
+verified CLI preparation check against its calibration before a real judgment;
+do not bypass configuration, engine or evidence validation. Change project
+profiles only with no active attempts and restore development after terminal
+closure. A judge run evaluates the bound saved answer, not a newly invoked
+application factory. Preserve unresolved operations before switching profiles.

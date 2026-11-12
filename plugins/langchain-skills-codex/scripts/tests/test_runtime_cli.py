@@ -21,7 +21,7 @@ class RuntimeCLITests(unittest.TestCase):
         base.mkdir(exist_ok=True)
         self.temporary = TemporaryDirectory(dir=base)
         self.root = Path(self.temporary.name) / "project"
-        initialize(self.root, "Runtime contract", sync=False)
+        initialize(self.root, "Runtime contract", sync=False, runtime_profile="oracle-aidp-langgraph-1.0.1")
         self.local = {"status": "observed", "python": "3.11.11", "packages": {
             "langgraph": "1.0.1", "langchain-core": "1.0.0", "langgraph-checkpoint": "3.0.0",
             "oci": "2.189.0", "aidputils": None}}
@@ -69,6 +69,16 @@ class RuntimeCLITests(unittest.TestCase):
         code, result = self.command("--observations", path.name, "--require-parity")
         self.assertEqual(code, 1)
         self.assertEqual(result["result"]["native"]["TEST"]["status"], "stale")
+
+    def test_managed_profile_gate_uses_all_selected_packages_without_signing(self):
+        self.local["packages"].update({"langgraph":"1.2.4", "langgraph-checkpoint":"4.1.1", "langgraph-prebuilt":"1.1.0"})
+        flags=("--runtime-profile","aidp-managed-1.2.4","--require-profile")
+        code,result=self.command(*flags)
+        self.assertEqual(code,0)
+        self.assertEqual(result["result"]["selected_profile_status"],"target_match")
+        self.assertEqual(result["result"]["local_profile_status"],"outside_documented_profile")
+        self.local["packages"].pop("langgraph-prebuilt")
+        self.assertEqual(self.command(*flags)[0],1)
 
     def test_malformed_or_external_observation_is_rejected_without_echoing_contents(self):
         path = self.root / "malformed.json"

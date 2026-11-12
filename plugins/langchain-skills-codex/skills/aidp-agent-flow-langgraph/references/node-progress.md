@@ -205,8 +205,10 @@ available and the command reports that the table was not updated. Repair the
 report with `progress report`; do not repeat a completed paid call to rebuild it.
 
 Changes to the plan, configured case, configuration or packaged source invalidate
-affected evidence conservatively. Editing the plan currently invalidates the
-plan-wide evidence binding; selective carry-forward is not implemented. Changing
+affected evidence conservatively. New node evidence records a criterion-specific binding so unrelated plan edits
+can preserve that evidence when the complete criterion/node context and runtime
+identity still match. Old receipts without the binding and final integrated
+`__agent__` acceptance retain whole-plan matching. Changing
 source outside the inspected deployment package requires the project to preserve
 its own revision boundary. A hash of packaged files does not prove the identity
 of arbitrary transitive imports or a remote deployment.
@@ -235,9 +237,11 @@ the generated report rather than editing its derived values:
 Distinguish a failed current observation from absent current evidence. Historical
 acceptance is useful engineering history, but does not grant current credit.
 Conservative package/plan invalidation can lower the formal percentage without
-proving a behavior regression. This release does not implement selective evidence
-carry-forward: never copy receipt hashes, relabel revisions or mark historical
-passes current to improve the number. An impact assessment prioritizes retests;
+proving a behavior regression. Selective plan-only reuse uses the original immutable receipt and recorded
+criterion binding; never copy receipt hashes or relabel revisions. Source, model,
+configuration and executor changes remain invalidating. Reused node evidence is
+explicitly marked with its original plan hash; final integrated acceptance remains
+bound to the complete plan. An impact assessment prioritizes retests;
 it does not bypass the implemented publication gate or required final acceptance.
 
 Report current node criteria and integrated acceptance with separate counts and
@@ -327,3 +331,28 @@ do not infer time spent developing or executing individual nodes from it.
 
 Basis: [LangGraph node and partial tests](https://docs.langchain.com/oss/python/langgraph/test)
 and [LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts).
+
+## Explicit functional publication policy (0.4.27)
+
+Existing plans retain `strict_node_layers_v1`: local and native TEST evidence is
+required for every inventoried node. This is this plugin's default policy, not a
+universal requirement imposed by LangGraph. LangGraph documents [whole graph,
+individual node and partial-path tests](https://docs.langchain.com/oss/python/langgraph/test).
+Those patterns inform choosing relevant checks; they do not mandate our release gate.
+
+When the accepted requirements explicitly separate functional publication from
+later quality calibration, a version 2 plan may select
+`publication_policy: "declared_requirements_v1"` with a nonempty
+`publication_policy_reason` referring to those requirements. Preserve every
+existing criterion ID and definition, scope decisions and historical evidence;
+increment the plan revision when changing policy. Do not select this merely to
+avoid a failed requirement or remove a criterion to pass publication.
+
+This explicit policy requires all declared active local/TEST criteria to pass
+with current identity, plus explicit native whole-agent integration acceptance.
+Blockers, exclusions, stale/failed/pending evidence, unknown observed nodes and
+unresolved campaign usage still block publication. The native snapshot is checked
+again at publication. Nodes without criteria stay `unplanned`, with no percentage
+or acceptance credit. `scope_complete` and semantic quality remain independent
+of the functional publication gate. A policy change invalidates the old
+plan-bound reviews; it does not transfer them to the new plan.

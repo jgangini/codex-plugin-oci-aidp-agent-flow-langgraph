@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 try:
     from .support import TemporaryDirectory
 except ImportError:
@@ -9,6 +10,8 @@ from unittest.mock import patch
 
 from aidp_agent_flow import __version__
 from aidp_agent_flow import native_invoke
+from aidp_agent_flow.campaign import campaign_status, initialize_campaign
+from aidp_agent_flow.cli import _campaign_invoke
 from aidp_agent_flow.native_invoke import invoke
 from aidp_agent_flow.native_lifecycle import NativeLifecycle
 from aidp_agent_flow.project import FlowError, initialize
@@ -116,6 +119,120 @@ class NativeInvokeTests(unittest.TestCase):
     def bind_package(self, selected, package="a" * 64):
         selected.state["test_receipt"] = {"package_sha256": package,
                                            "deployments": NativeLifecycle._snapshot(selected.rows["TEST"])}
+
+    def campaign_args(self):
+        policy = {"version": 1, "max_attempts": 10, "max_model_calls": 10, "max_identical_trials": 1,
+                  "native_call_ceiling": 2, "budget_usd": "5", "real_cost_ceiling_usd": "1",
+                  "native_cost_ceiling_usd": "2"}
+        (self.root / "policy.json").write_text(json.dumps(policy), encoding="utf-8")
+        initialize_campaign(self.root, "policy.json")
+        return SimpleNamespace(question_file="question.json", surface="TEST", session=None, expect=[],
+                               timeout=90, hypothesis="Verify the reviewed native response", evidence=[], repeat_reason=None)
+
+    def test_preflight_does_not_claim_new_case_or_archive_prior_revision(self):
+        selected, _ = self.fixture()
+        prepared = native_invoke.preflight_invoke(selected, "question.json")
+        self.assertFalse(prepared["artifact"].parent.exists())
+        self.assertEqual(selected.transport.calls, [])
+        first = invoke(selected, "question.json")
+        original = Path(first["artifact"]).read_bytes()
+        self.advance(selected)
+        prepared = native_invoke.preflight_invoke(selected, "question.json")
+        self.assertEqual(prepared["artifact"].read_bytes(), original)
+        self.assertFalse((prepared["artifact"].parent / "history").exists())
+        self.assertEqual(len(selected.transport.calls), 1)
+
+    def test_campaign_frozen_question_failure_preserves_ledger_and_receipt(self):
+        args = self.campaign_args()
+        selected, _ = self.fixture()
+        first = invoke(selected, "question.json")
+        original = Path(first["artifact"]).read_bytes()
+        self.advance(selected)
+        self.question.write_text(json.dumps({"id": "stable-case", "question": "Changed question"}), encoding="utf-8")
+        before = campaign_status(self.root)
+        with self.assertRaisesRegex(FlowError, "frozen question"):
+            _campaign_invoke(args, selected, self.root, selected.config)
+        self.assertEqual(campaign_status(self.root), before)
+        self.assertEqual(Path(first["artifact"]).read_bytes(), original)
+        self.assertEqual(len(selected.transport.calls), 1)
+        self.assertFalse((Path(first["artifact"]).parent / "history").exists())
+
+    def test_campaign_invalid_inputs_or_native_bindings_do_not_reserve(self):
+        args = self.campaign_args()
+        failures = [("timeout", 0, "timeout"), ("expect", [""], "expected substrings"),
+                    ("surface", "UNKNOWN", "surface"), ("session", "missing-session", "session")]
+        for field, value, message in failures:
+            with self.subTest(field=field):
+                selected, _ = self.fixture()
+                candidate = SimpleNamespace(**{**vars(args), field: value})
+                with self.assertRaisesRegex(FlowError, message):
+                    _campaign_invoke(candidate, selected, self.root, selected.config)
+                self.assertEqual(campaign_status(self.root)["attempts"], [])
+                self.assertEqual(selected.transport.calls, [])
+        selected, _ = self.fixture()
+        selected.rows["TEST"][0]["endpointUrl"] = "https://unapproved.example/chat"
+        with self.assertRaisesRegex(FlowError, "approved native gateway"):
+            _campaign_invoke(args, selected, self.root, selected.config)
+        self.assertEqual(campaign_status(self.root)["attempts"], [])
+        self.assertFalse((self.root / ".aidp-local/invocations").exists())
+
+    def test_campaign_duplicate_and_uncertain_prior_case_do_not_reserve(self):
+        args = self.campaign_args()
+        selected, _ = self.fixture()
+        first = invoke(selected, "question.json")
+        with self.assertRaisesRegex(FlowError, "same deployment"):
+            _campaign_invoke(args, selected, self.root, selected.config)
+        self.assertEqual(campaign_status(self.root)["attempts"], [])
+        prior = self.artifact(first)
+        prior["state"] = "UNCERTAIN"
+        Path(first["artifact"]).write_text(json.dumps(prior), encoding="utf-8")
+        self.advance(selected)
+        with self.assertRaisesRegex(FlowError, "uncertain response"):
+            _campaign_invoke(args, selected, self.root, selected.config)
+        self.assertEqual(campaign_status(self.root)["attempts"], [])
+        self.assertEqual(len(selected.transport.calls), 1)
+
+    def test_case_claim_rechecks_a_conflict_after_read_only_preflight(self):
+        selected, _ = self.fixture()
+        preflight = native_invoke.preflight_invoke
+
+        def competing_claim(*args, **kwargs):
+            prepared = preflight(*args, **kwargs)
+            native_invoke._claim_case(prepared["artifact"], prepared["record"])
+            return prepared
+
+        with patch.object(native_invoke, "preflight_invoke", side_effect=competing_claim):
+            with self.assertRaisesRegex(FlowError, "uncertain response"):
+                invoke(selected, "question.json")
+        self.assertEqual(selected.transport.calls, [])
+
+    def test_campaign_success_reserves_once_and_keeps_native_usage_unknown(self):
+        args = self.campaign_args()
+        selected, _ = self.fixture()
+        result = _campaign_invoke(args, selected, self.root, selected.config)
+        status = campaign_status(self.root)
+        self.assertTrue(result["passed"])
+        self.assertEqual(len(status["attempts"]), 1)
+        self.assertEqual(status["attempts"][0]["id"], result["campaign_attempt_id"])
+        self.assertEqual(status["attempts"][0]["state"], "COMPLETED")
+        self.assertIsNone(status["attempts"][0]["model_calls"])
+        self.assertEqual(status["model_calls_used_or_reserved"], 2)
+        self.assertEqual(len(selected.transport.calls), 1)
+
+    def test_campaign_transport_failure_retains_uncertain_reservations(self):
+        args = self.campaign_args()
+        selected, _ = self.fixture()
+        with patch.object(selected.transport, "request", side_effect=TimeoutError("Synthetic uncertain POST")) as request:
+            result = _campaign_invoke(args, selected, self.root, selected.config)
+        status = campaign_status(self.root)
+        self.assertFalse(result["passed"])
+        self.assertEqual(self.artifact(result)["state"], "UNCERTAIN")
+        self.assertEqual(status["attempts"][0]["state"], "UNCERTAIN")
+        self.assertIsNone(status["attempts"][0]["model_calls"])
+        self.assertEqual(status["unresolved_attempts"], [result["campaign_attempt_id"]])
+        self.assertEqual(status["model_calls_used_or_reserved"], 2)
+        self.assertEqual(status["cost_used_or_reserved_usd"], "2")
+        request.assert_called_once()
 
     def test_reconciled_snapshot_binds_the_package_and_is_rechecked_after_response(self):
         selected, _ = self.fixture()
@@ -533,6 +650,66 @@ class NativeInvokeTests(unittest.TestCase):
                 self.assertEqual(result["failure"], expected)
                 self.assertTrue(response.closed)
 
+    def test_large_native_trace_is_not_public_output_or_a_failure(self):
+        event = output_event("Safe answer")
+        part = event["response"]["output"][0]["content"][0]
+        part["spans"] = [{"status": "failed", "trace": "PRIVATE-TRACE" * 30000}]
+        part["resources"] = {"diagnostic": "PRIVATE-TRACE"}
+        event["response"]["output"][0]["content"].append(
+            {"type": "trace", "text": "PRIVATE-TRACE" * 30000})
+        selected, _ = self.fixture(stream(event))
+        result = invoke(selected, "question.json")
+        self.assertTrue(result["passed"])
+        saved = json.loads(Path(result["artifact"]).read_bytes())
+        self.assertEqual(saved["answer"], "Safe answer")
+        self.assertNotIn("PRIVATE-TRACE", json.dumps(saved["events"]))
+        self.assertLess(Path(result["artifact"]).stat().st_size, 20000)
+
+    def test_public_nested_error_is_not_hidden_by_trace_projection(self):
+        event = output_event("Unsafe result")
+        event["response"]["output"][0]["content"].append(
+            {"type": "tool_result", "result": {"isError": True}})
+        selected, _ = self.fixture(stream(event))
+        result = invoke(selected, "question.json")
+        self.assertFalse(result["passed"])
+        self.assertGreater(result["error_count"], 0)
+
+    def test_public_capture_has_a_separate_finite_limit(self):
+        selected, response = self.fixture(stream(output_event("Safe answer")))
+        with patch.object(native_invoke, "_MAX_CAPTURE", 40):
+            result = invoke(selected, "question.json")
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["failure"], "capture_limit")
+        self.assertTrue(response.closed)
+
+    def test_control_and_done_frames_also_obey_capture_bound(self):
+        for end in (b"\n\n", b"\ndata: [DONE]\n\n"):
+            with self.subTest(end=end):
+                self.question.write_text(json.dumps({"id": "control-" + str(len(end)),
+                                                      "question": "Synthetic question"}))
+                selected, response = self.fixture(b"event: " + b"control" * 8 + end)
+                with patch.object(native_invoke, "_MAX_CAPTURE", 40):
+                    result = invoke(selected, "question.json")
+                self.assertFalse(result["passed"])
+                self.assertEqual(result["failure"], "capture_limit")
+                self.assertTrue(response.closed)
+
+    def test_cumulative_public_transcript_can_exceed_twenty_thousand_characters(self):
+        text = "Public progress packet\n" * 2500
+        selected, _ = self.fixture(stream(output_event(text)))
+        result = invoke(selected, "question.json")
+        self.assertTrue(result["passed"])
+        self.assertTrue(result["stream_complete"])
+        self.assertEqual(json.loads(Path(result["artifact"]).read_bytes())["answer"], text)
+
+    def test_answer_still_has_finite_limit_and_preserves_observed_completion(self):
+        selected, response = self.fixture(stream(output_event("x" * (native_invoke._MAX_ANSWER + 1))))
+        result = invoke(selected, "question.json")
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["failure"], "answer_limit")
+        self.assertTrue(result["stream_complete"])
+        self.assertTrue(response.closed)
+
     def test_elapsed_budget_is_checked_during_stream(self):
         selected, response = self.fixture()
         with patch.object(native_invoke.time, "monotonic", side_effect=[0, 0, 2]):
@@ -549,6 +726,18 @@ class NativeInvokeTests(unittest.TestCase):
         self.assertTrue(result["passed"])
         self.assertNotIn("DO-NOT-PRINT", Path(result["artifact"]).read_text(encoding="utf-8"))
 
+    def test_explicit_long_research_deadlines_keep_streaming_and_record_the_control(self):
+        for timeout in (600, 1800):
+            with self.subTest(timeout=timeout):
+                self.question.write_text(json.dumps({"id": "long-" + str(timeout), "question": "Synthetic"}), encoding="utf-8")
+                selected, response = self.fixture()
+                result = invoke(selected, "question.json", timeout=timeout)
+                self.assertTrue(result["passed"])
+                self.assertEqual(self.artifact(result)["timeout_seconds"], timeout)
+                self.assertTrue(selected.transport.calls[0]["stream"])
+                self.assertEqual(len(selected.transport.calls), 1)
+                self.assertTrue(response.closed)
+
     def test_question_path_shape_size_and_timeout_are_validated_before_post(self):
         selected, _ = self.fixture()
         for path in (str(self.question), "../question.json"):
@@ -559,7 +748,7 @@ class NativeInvokeTests(unittest.TestCase):
             with self.assertRaises(FlowError):
                 invoke(selected, "question.json")
         self.question.write_text(json.dumps({"id": "case", "question": "Valid"}), encoding="utf-8")
-        for timeout in (0, 301, float("inf"), True):
+        for timeout in (0, -1, 1801, float("inf"), float("nan"), True):
             with self.subTest(timeout=timeout), self.assertRaises(FlowError):
                 invoke(selected, "question.json", timeout=timeout)
         self.assertEqual(selected.transport.calls, [])

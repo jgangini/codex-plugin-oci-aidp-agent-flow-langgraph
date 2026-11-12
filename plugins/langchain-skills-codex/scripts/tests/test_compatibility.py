@@ -122,6 +122,7 @@ class CompatibilityTests(unittest.TestCase):
 
     def test_probe_uses_isolated_metadata_and_no_sdk_or_agent_import(self):
         expected = observation()
+        expected["packages"] = {name: expected["packages"].get(name) for name in PACKAGES}
         output = {key: expected[key] for key in ("python", "packages")}
         with patch("aidp_agent_flow.compatibility.subprocess.run", return_value=SimpleNamespace(
                 returncode=0, stdout=json.dumps(output))) as run:
@@ -148,8 +149,9 @@ class CompatibilityTests(unittest.TestCase):
         with TemporaryDirectory(dir=base) as temporary:
             root = Path(temporary) / "project"
             initialized = initialize(root, "Agent", sync=False)
-            self.assertEqual(initialized["runtime_profile_status"], "documented_match")
-            self.assertIn('"langgraph==1.0.1"', (root / "pyproject.toml").read_text(encoding="utf-8"))
+            self.assertEqual(initialized["runtime_profile_status"], "outside_documented_profile")
+            self.assertEqual(initialized["selected_profile"], "aidp-managed-1.2.4")
+            self.assertIn('"langgraph==1.2.4"', (root / "pyproject.toml").read_text(encoding="utf-8"))
             before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             with patch("aidp_agent_flow.compatibility.observe_local", return_value=observation()):
                 result = doctor(root)

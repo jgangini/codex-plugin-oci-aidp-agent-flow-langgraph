@@ -69,6 +69,16 @@ class FakeHTTP:
         if method == "POST" and self.timeout_post:
             raise TimeoutError("DO-NOT-PRINT provider body")
         if method == "GET":
+            if route.endswith("/objects"):
+                root = query.get("path", [None])[0]
+                objects = {}
+                for remote, content in self.objects.items():
+                    if not remote.startswith(root + "/"):
+                        continue
+                    relative = remote[len(root) + 1:]
+                    first = relative.split("/", 1)[0]
+                    objects[root + "/" + first] = "FOLDER" if "/" in relative or (content == b"" and "." not in first) else "FILE"
+                return FakeResponse({"items": [{"path": path, "type": kind} for path, kind in sorted(objects.items())]})
             if "/objects/" in route:
                 remote = unquote(route.split("/objects/", 1)[1])
                 return FakeResponse(self.objects[remote], raw=True) if remote in self.objects else FakeResponse(status=404)
@@ -186,6 +196,78 @@ class NativeLifecycleTests(unittest.TestCase):
         private_json(self.root / relative, receipt)
         record_test_review(self.root, "respond", "native-positive", relative, "accepted", "Node result reviewed")
         record_test_review(self.root, "__agent__", "agent-integrated", relative, "accepted", "Agent integration reviewed")
+
+    def test_binding_inspection_reports_path_drift_without_writes(self):
+        selected = self.bound_instance()
+        self.http.agents[0].update(pathInfo="/Workspace/legacy/metadata",
+                                   entryFilePath="/Workspace/legacy/code/agent.py",
+                                   dependenciesFilePath="/Workspace/legacy/code/requirements.txt")
+        self.http.tests = [self.http.deployment("TEST")]
+        self.http.prod = [self.http.deployment("PROD")]
+        result = selected.inspect_binding()
+        self.assertFalse(result["binding_verified"])
+        self.assertTrue(result["read_only"])
+        self.assertTrue(result["relocation_required"])
+        self.assertTrue(result["entry_update_required"])
+        self.assertEqual(result["metadata_location"], "/Workspace/legacy/metadata")
+        self.assertEqual(result["code_root"], "/Workspace/legacy/code")
+        self.assertEqual(result["migration_blockers"], ["metadata_object_not_verified"])
+        self.assertFalse(result["metadata_object_verified"])
+        self.assertFalse(result["migration_applied"])
+        self.assertFalse(result["native_test_accepted"])
+        self.assertEqual([row["deploymentType"] for row in result["test"]], ["TEST"])
+        self.assertEqual([row["deploymentType"] for row in result["prod"]], ["PROD"])
+        self.assertTrue(all(call["method"] == "GET" for call in self.http.calls))
+        self.assertEqual(len(self.http.calls), 3)
+        self.assertFalse(selected.journal.exists())
+        with self.assertRaises(FlowError):
+            selected.status()
+
+    def test_binding_inspection_does_not_turn_a_match_into_acceptance(self):
+        selected = self.bound_instance()
+        result = selected.inspect_binding()
+        self.assertTrue(result["binding_verified"])
+        self.assertEqual(result["differences"], {})
+        self.assertFalse(result["relocation_required"])
+        self.assertFalse(result["native_test_accepted"])
+        self.assertFalse(selected.journal.exists())
+
+    def test_binding_inspection_refuses_foreign_identity_before_deployments(self):
+        for field, value in (("key", "another-agent"), ("type", "DIAGRAM"),
+                             ("computeKey", "another-compute")):
+            with self.subTest(field=field):
+                selected = self.bound_instance()
+                item = {**self.http.agents[0], field: value}
+                self.http.calls.clear()
+                with patch.object(selected, "_request", return_value=(item, {})) as request:
+                    with self.assertRaises(FlowError):
+                        selected.inspect_binding()
+                self.assertEqual(request.call_count, 1)
+                self.assertFalse(selected.journal.exists())
+
+    def test_binding_cli_is_read_only_and_dispatches_without_apply(self):
+        from contextlib import redirect_stdout
+        import io
+        from aidp_agent_flow.cli import main, parser
+
+        self.assertEqual(parser().parse_args(["native", "inspect-binding"]).action, "inspect-binding")
+        with self.assertRaises(FlowError):
+            parser().parse_args(["native", "inspect-binding", "--apply"])
+        selected = self.bound_instance()
+        output = io.StringIO()
+        with patch("aidp_agent_flow.cli.load_project", return_value=(self.root, self.config)), \
+                patch.object(lifecycle, "NativeLifecycle", return_value=selected), redirect_stdout(output):
+            code = main(["--project", str(self.root), "--json", "native", "inspect-binding"])
+        self.assertEqual(code, 0)
+        self.assertTrue(json.loads(output.getvalue())["result"]["read_only"])
+        self.assertTrue(self.http.closed)
+        self.assertFalse(selected.journal.exists())
+
+    def test_binding_inspection_requires_known_identity(self):
+        selected = self.instance()
+        with self.assertRaises(FlowError):
+            selected.inspect_binding()
+        self.assertEqual(self.http.calls, [])
 
     def test_sync_plan_reads_without_auth_or_creating_journal(self):
         selected = self.instance()
@@ -355,6 +437,33 @@ class NativeLifecycleTests(unittest.TestCase):
         self.assertEqual(post["route"], "/workspaces/workspace-one/agentFlows/agent-one/deployments/actions/redeploy")
         self.assertEqual(post["payload"]["deploymentType"], "TEST")
         self.assertEqual(result["deployment_type"], "TEST")
+
+    def test_deployment_receipt_is_saved_before_intent_is_closed(self):
+        selected = self.bound_instance()
+        selected.test_init(apply=True)
+        self.http.complete_deployment()
+        with patch.object(selected, "_save_state", side_effect=OSError("Synthetic save failure")):
+            with self.assertRaises(OSError):
+                selected.status()
+        self.assertNotEqual(selected._intents()[0][1]["state"], "RECONCILED")
+        recovered = self.instance(bound=True)
+        recovered.status()
+        self.assertEqual(recovered.state["test_receipt"]["deployments"], recovered._snapshot(self.http.tests))
+        self.assertEqual(recovered._intents()[0][1]["state"], "RECONCILED")
+        self.assertEqual(len(self.posts()), 1)
+
+    def test_deployment_receipt_survives_lost_intent_close_without_second_post(self):
+        selected = self.bound_instance()
+        selected.test_init(apply=True)
+        self.http.complete_deployment()
+        with patch.object(selected, "_reconciled", side_effect=OSError("Synthetic close failure")):
+            with self.assertRaises(OSError):
+                selected.status()
+        recovered = self.instance(bound=True)
+        self.assertIn("test_receipt", recovered.state)
+        recovered.status()
+        self.assertEqual(recovered._intents()[0][1]["state"], "RECONCILED")
+        self.assertEqual(len(self.posts()), 1)
 
     def test_test_reconciliation_detects_production_change(self):
         selected = self.bound_instance()
@@ -562,6 +671,85 @@ class NativeLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(FlowError, "Unsupported"):
             selected._request("DELETE", "/workspaces/workspace-one/agents/agent-one")
         self.assertEqual(self.http.calls, [])
+
+
+    def test_refresh_cycle_can_return_to_a_historical_package_with_distinct_deployment_scope(self):
+        selected = self.bound_instance()
+        self.http.tests = [self.http.deployment("TEST", 1)]
+        path = self.root / "agent/core/state.py"
+        original = path.read_bytes()
+        for version, content in ((2, b"# revision B\n"), (3, original), (4, b"# revision B\n")):
+            path.write_bytes(content)
+            self.seed_package()
+            selected.test_refresh(apply=True)
+            self.http.complete_deployment(version=version)
+            selected = self.instance(bound=True)
+            selected.status()
+            plan = selected.test_refresh()
+            self.assertTrue(plan["up_to_date"])
+            self.assertEqual(plan["package_sha256"], inspect_package(self.root)["package_sha256"])
+        self.assertEqual(len(self.posts()), 3)
+        self.assertEqual(len({row["headers"]["opc-retry-token"] for row in self.posts()}), 3)
+        self.assertTrue(all(row["state"] == "RECONCILED" for _, row in selected._intents()))
+
+    def test_sync_cycles_keep_terminal_history_and_never_renew_uncertain_writes(self):
+        selected = self.bound_instance()
+        path = self.root / "agent/core/state.py"
+        original = path.read_bytes()
+        for content in (b"# revision B\n", original, b"# revision B\n"):
+            path.write_bytes(content)
+            selected.sync_package(apply=True)
+            selected = self.instance(bound=True)
+        file_posts = [row for row in self.posts() if row["headers"].get("type") == "FILE"]
+        self.assertEqual(len(file_posts), 3)
+        self.assertEqual(len({row["headers"]["opc-retry-token"] for row in file_posts}), 3)
+        path.write_bytes(b"# revision C\n")
+        self.http.timeout_post = True
+        with self.assertRaises(FlowError):
+            selected.sync_package(apply=True)
+        before = len(self.posts())
+        with self.assertRaises(FlowError):
+            self.instance(bound=True).sync_package(apply=True)
+        self.assertEqual(len(self.posts()), before)
+
+    def test_guarded_sync_rejects_foreign_drift_before_any_write_and_accepts_verified_noop(self):
+        selected = self.bound_instance()
+        package = inspect_package(self.root)
+        definition = {"version": 1, "package_sha256": package["package_sha256"],
+                      "files": {name: [digest] for name, digest in package["files"].items()}}
+        path = self.root / ".aidp-local/sync-conditions.json"
+        private_json(path, definition)
+        result = selected.sync_package(apply=True, expected_inventory=".aidp-local/sync-conditions.json")
+        self.assertFalse(result["applied"])
+        self.assertTrue(result["preconditions_checked"] and result["readback_verified"])
+        self.http.objects["/Workspace/fixture/agent/core/state.py"] = b"foreign manual edit"
+        self.http.calls.clear()
+        with self.assertRaisesRegex(FlowError, "drift was preserved"):
+            selected.sync_package(apply=True, expected_inventory=".aidp-local/sync-conditions.json")
+        self.assertEqual(self.posts(), [])
+        self.assertEqual(self.http.objects["/Workspace/fixture/agent/core/state.py"], b"foreign manual edit")
+
+    def test_guarded_sync_rechecks_each_file_immediately_before_upload(self):
+        selected = self.bound_instance()
+        old = inspect_package(self.root)
+        (self.root / "agent/core/state.py").write_bytes(b"# new revision\n")
+        package = inspect_package(self.root)
+        definition = {"version": 1, "package_sha256": package["package_sha256"],
+                      "files": {name: list({old["files"][name], digest}) for name, digest in package["files"].items()}}
+        private_json(self.root / ".aidp-local/sync-conditions.json", definition)
+        original = selected._object
+        reads = []
+        def drift(remote, **kwargs):
+            if remote == "/Workspace/fixture/agent/core/state.py":
+                reads.append(remote)
+                if len(reads) == 2:
+                    self.http.objects[remote] = b"foreign after preflight"
+            return original(remote, **kwargs)
+        with patch.object(selected, "_object", side_effect=drift):
+            with self.assertRaisesRegex(FlowError, "drift was preserved"):
+                selected.sync_package(apply=True, expected_inventory=".aidp-local/sync-conditions.json")
+        self.assertFalse(any(row["headers"].get("type") == "FILE" for row in self.posts()))
+        self.assertEqual(self.http.objects["/Workspace/fixture/agent/core/state.py"], b"foreign after preflight")
 
 
 if __name__ == "__main__":

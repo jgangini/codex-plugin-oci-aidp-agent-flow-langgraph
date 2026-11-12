@@ -162,22 +162,31 @@ async def experiment(job, progress=None):
                         checkpointer_scope="bypassed_by_node" if case.get("node") else "in_memory_local_only")
         progress["stage"] = "load_project"
         root, config = load_project(job["project"])
-        sys.path.insert(0, str(contained(root, config["agent"]["python_path"])))
+        if job.get("quality_mode") is not None:
+            from .quality import validate_quality_case
+            validate_quality_case(root, case, job["quality_mode"])
+        else:
+            sys.path.insert(0, str(contained(root, config["agent"]["python_path"])))
         oci_config = Path(config.get("oci", {}).get("config_file", ".oci/config")).expanduser()
         if not oci_config.is_absolute():
             oci_config = root / oci_config
         progress["stage"] = "model_setup"
-        model = (OCIModel(oci_config, config.get("oci", {}).get("profile", "DEFAULT"), config.get("model", {}))
+        model_settings = dict(config.get("model", {}))
+        if job.get("quality_mode") is not None:
+            model_settings["max_calls"] = 1
+        model = (OCIModel(oci_config, config.get("oci", {}).get("profile", "DEFAULT"), model_settings)
                  if job["real"] else FixtureModel(case.get("model_responses", ["Recorded fixture response"])))
         progress["stage"] = "services_setup"
         services = RecordedServices(case.get("service_records", []))
         runtime = {"model": model, "services": services, "checkpointer": InMemorySaver(), "external_effects_allowed": False}
+        if job.get("quality_mode") is not None:
+            runtime.update(project_root=root, quality_debug_root=root / ".aidp-local/quality-debug")
         if case.get("clock_at"):
             fixed_time = datetime.fromisoformat(case["clock_at"].replace("Z", "+00:00"))
             runtime["clock"] = lambda: fixed_time
         else:
             runtime["clock"] = lambda: datetime.now(timezone.utc)
-        module, function = config["agent"]["factory"].split(":")
+        module, function = ("aidp_agent_flow.quality_grader", "build_graph") if job.get("quality_mode") is not None else config["agent"]["factory"].split(":")
         progress["stage"] = "factory"
         graph = getattr(importlib.import_module(module), function)(runtime)
         if getattr(graph, "checkpointer", None) not in (None, runtime["checkpointer"]):
@@ -199,6 +208,8 @@ async def experiment(job, progress=None):
             model.assert_complete()
         progress["stage"] = "service_contract"
         services.assert_consumed()
+        if job.get("quality_mode") is not None:
+            progress["quality_assessment"] = progress["output"]["assessment"]
         passed = all(item["passed"] for item in verdicts)
         progress.update(passed=passed, model_cost="unknown", stage="complete",
                         failure_stage=None if passed else "assertions")

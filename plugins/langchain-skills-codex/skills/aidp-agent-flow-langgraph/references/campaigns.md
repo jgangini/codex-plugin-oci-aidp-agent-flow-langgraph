@@ -128,6 +128,13 @@ Use repeated trials deliberately for stochastic behavior, not as an unrecorded
 loop until an answer happens to pass. Different inputs or a revised candidate
 need a new hypothesis but still consume the campaign's accumulated limits.
 
+An explicit request for N additional repetitions means N more trials, not a
+campaign reset: include already-admitted identical trials when checking
+`max_identical_trials`, without changing case identity to bypass that limit.
+Report repeated trials of one case, not N independent questions; use the existing
+[measurement-mode criteria](../../aidp-langgraph-test/references/evaluation-method.md#working-mode-and-evaluator-readiness)
+for outcomes and denominators.
+
 Results are saved after each case. If the next case cannot be admitted, the CLI
 returns the completed evidence and lists cases not run. If ledger completion or
 the derived table fails, the execution receipt remains available. Fix/reconcile

@@ -6,6 +6,7 @@ import hashlib
 import html
 import json
 import os
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -47,16 +48,20 @@ def _project(root):
     return load_project(root)
 
 
-def _read(path):
+def _read_hashed(path):
     _unlinked(path)
     try:
         with path.open("rb") as stream:
             data = stream.read(_MAX_JSON + 1)
         if len(data) > _MAX_JSON:
             raise ValueError
-        return json.loads(data)
+        return json.loads(data), hashlib.sha256(data).hexdigest()
     except (OSError, ValueError, UnicodeError, RecursionError):
         raise FlowError("Progress JSON is unreadable, malformed or exceeds its size limit") from None
+
+
+def _read(path):
+    return _read_hashed(path)[0]
 
 
 def _text(value, name, limit=500):
@@ -69,7 +74,13 @@ def _validate_plan(root, plan):
     if not isinstance(plan, dict) or type(plan.get("version")) is not int or plan["version"] not in (1, 2):
         raise FlowError("Progress plan requires version 1 or 2")
     fields = {"version", "requirements_ref", "nodes", "acceptance"}
-    known_fields(plan, fields | ({"revision", "scope_decisions"} if plan["version"] == 2 else set()), "progress plan")
+    known_fields(plan, fields | ({"revision", "scope_decisions", "publication_policy", "publication_policy_reason"}
+                                if plan["version"] == 2 else set()), "progress plan")
+    policy = plan.get("publication_policy", "strict_node_layers_v1")
+    if not isinstance(policy, str) or policy not in {"strict_node_layers_v1", "declared_requirements_v1"}:
+        raise FlowError("Unknown publication policy")
+    if policy == "declared_requirements_v1" or "publication_policy_reason" in plan:
+        _text(plan.get("publication_policy_reason"), "publication policy reason", 2000)
     # This is an annotation, not a path the reporter opens or executes.
     _text(plan.get("requirements_ref"), "requirements_ref")
     nodes = plan.get("nodes")
@@ -185,7 +196,7 @@ def _receipts(root, relative, key=None):
     fields = {"case_id", "case_sha256", "config_sha256", "package_sha256", "progress_plan_sha256", "mode",
               "recorded_at", "passed", "visited_nodes", "model_calls", "failure_stage", "node_id", "criterion_id",
               "verdict", "receipt", "receipt_sha256", "evaluator_version", "model_response_metadata",
-              "engine_sha256", "environment_sha256", "environment_observed"}
+              "engine_sha256", "environment_sha256", "environment_observed", "criterion_bindings"}
     for path in paths:
         _unlinked(path)
         total_bytes += path.stat().st_size
@@ -261,7 +272,7 @@ def _local_failures(result, node_id, mode):
     return reasons
 
 
-def _local_result(root, node_id, criterion, rows, identity):
+def _local_result(root, node_id, criterion, rows, identity, fingerprint=None):
     relevant = [row for row in rows if row["value"].get("case_id") == criterion["case_id"]]
     mode = "local_real_oci_model" if criterion.get("mode") == "real" else "local_fixture_model"
     historical = lambda selected: _historical_pass(relevant, selected, lambda value:
@@ -278,11 +289,11 @@ def _local_result(root, node_id, criterion, rows, identity):
                 "configuration_reason": "The case node selector must name this node for scope=node.",
                 "historical_pass": historical(None)}
     wanted = {**identity, "case_sha256": canonical_hash(case), "mode": mode}
-    current = [row for row in relevant if _same_revision(row["value"], wanted)
+    current = [row for row in relevant if _matches_criterion(row["value"], wanted, node_id, criterion["id"], fingerprint)
                and identity.get("environment_observed") is True and row["value"].get("environment_observed") is True]
     selected = _latest(current)
     if selected is None:
-        reasons = _stale_reasons(relevant, wanted)
+        reasons = _criterion_stale_reasons(relevant, wanted, node_id, criterion["id"], fingerprint)
         if identity.get("environment_observed") is not True:
             reasons.append("environment_observation_unavailable")
         return {"state": "stale" if relevant else "pending", "evidence": None,
@@ -291,7 +302,68 @@ def _local_result(root, node_id, criterion, rows, identity):
     failures = _local_failures(result, node_id, criterion.get("mode"))
     return {"state": "failed" if failures else "passed", "evidence": selected["path"],
             "recorded_at": result.get("recorded_at"), "failure_stage": result.get("failure_stage"),
-            "failure_reasons": failures, "historical_pass": historical(selected)}
+            "failure_reasons": failures, "historical_pass": historical(selected), **_reuse_details(selected, identity)}
+
+
+def criterion_fingerprint(plan, node_id, criterion):
+    node = next((item for item in plan["nodes"] if item["id"] == node_id), None)
+    if node is None:
+        raise FlowError("Criterion fingerprints require an inventoried node")
+    return canonical_hash({
+        "schema": "criterion-evidence-v1",
+        "node": {key: value for key, value in node.items() if key != "criteria"},
+        "criterion": criterion,
+        "requirements_ref": plan["requirements_ref"],
+        "publication_policy": plan.get("publication_policy", "strict_node_layers_v1"),
+        "publication_policy_reason": plan.get("publication_policy_reason"),
+        "scope_decisions": [item for item in plan.get("scope_decisions", [])
+                            if item["node_id"] == node_id and item["criterion_id"] == criterion["id"]],
+    })
+
+
+def local_criterion_bindings(root, plan, case_file, case, real):
+    bindings = {}
+    for node in plan["nodes"]:
+        for criterion in node["criteria"]:
+            if (criterion["layer"] == "local" and criterion["case_id"] == case["id"]
+                    and (criterion.get("mode", "fixture") == "real") == real
+                    and _path(root, criterion["cases_file"]).resolve() == Path(case_file).resolve()):
+                bindings.setdefault(node["id"], {})[criterion["id"]] = criterion_fingerprint(plan, node["id"], criterion)
+    return bindings
+
+
+def _criterion_revision(value, identity, node_id, criterion_id, fingerprint):
+    if (fingerprint is None or "criterion_bindings" not in value
+            or not isinstance(value.get("progress_plan_sha256"), str)
+            or re.fullmatch(r"[a-f0-9]{64}", value["progress_plan_sha256"]) is None):
+        return value, identity
+    bindings = value["criterion_bindings"]
+    node = bindings.get(node_id) if isinstance(bindings, dict) else None
+    recorded = node.get(criterion_id) if isinstance(node, dict) else None
+    return ({**value, "criterion_sha256": recorded},
+            {**{key: item for key, item in identity.items() if key != "progress_plan_sha256"},
+             "criterion_sha256": fingerprint})
+
+
+def _matches_criterion(value, identity, node_id, criterion_id, fingerprint):
+    value, wanted = _criterion_revision(value, identity, node_id, criterion_id, fingerprint)
+    return _same_revision(value, wanted)
+
+
+def _criterion_stale_reasons(rows, identity, node_id, criterion_id, fingerprint):
+    latest = _latest(rows)
+    if latest is None:
+        return _stale_reasons(rows, identity)
+    value, wanted = _criterion_revision(latest["value"], identity, node_id, criterion_id, fingerprint)
+    return _stale_reasons([{**latest, "value": value}], wanted)
+
+
+def _reuse_details(selected, identity):
+    previous = selected["value"].get("progress_plan_sha256")
+    if previous == identity["progress_plan_sha256"]:
+        return {}
+    return {"evidence_reused": True, "evidence_plan_sha256": previous,
+            "reuse_basis": "unchanged_criterion_same_candidate"}
 
 
 def _native_identity(root, config):
@@ -334,15 +406,15 @@ def _native_receipt(root, config, criterion, receipt_file, package_hash, accepte
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _test_result(root, config, node_id, criterion, rows, identity):
+def _test_result(root, config, node_id, criterion, rows, identity, fingerprint=None):
     relevant = [row for row in rows if row["value"].get("node_id") == node_id
                 and row["value"].get("criterion_id") == criterion["id"]]
-    current = [row for row in relevant if _same_revision(row["value"], identity)]
+    current = [row for row in relevant if _matches_criterion(row["value"], identity, node_id, criterion["id"], fingerprint)]
     selected = _latest(current)
     historical = _historical_pass(relevant, selected, lambda value: value.get("verdict") == "accepted")
     if selected is None:
         return {"state": "stale" if relevant else "pending", "evidence": None,
-                "stale_reasons": _stale_reasons(relevant, identity), "historical_pass": historical}
+                "stale_reasons": _criterion_stale_reasons(relevant, identity, node_id, criterion["id"], fingerprint), "historical_pass": historical}
     review = selected["value"]
     try:
         digest = _native_receipt(root, config, criterion, review["receipt"], identity["package_sha256"],
@@ -353,7 +425,7 @@ def _test_result(root, config, node_id, criterion, rows, identity):
     return {"state": ("passed" if review["verdict"] == "accepted" else "failed") if valid else "stale",
             "evidence": selected["path"], "recorded_at": review.get("recorded_at"),
             "stale_reasons": [] if valid else ["native_receipt_or_review_binding_invalid"],
-            "historical_pass": historical}
+            "historical_pass": historical, **(_reuse_details(selected, identity) if valid else {})}
 
 
 def _coverage(criteria):
@@ -398,8 +470,9 @@ def _apply_scope(result, decision, identity):
 def _node(root, config, node, local, reviews, identity, plan):
     criteria = []
     for criterion in node["criteria"]:
-        result = (_local_result(root, node["id"], criterion, local, identity) if criterion["layer"] == "local"
-                  else _test_result(root, config, node["id"], criterion, reviews, identity))
+        fingerprint = criterion_fingerprint(plan, node["id"], criterion)
+        result = (_local_result(root, node["id"], criterion, local, identity, fingerprint) if criterion["layer"] == "local"
+                  else _test_result(root, config, node["id"], criterion, reviews, identity, fingerprint))
         result = _apply_scope(result, scope_decision(plan, node["id"], criterion["id"]), identity)
         criteria.append({**_criterion_details(node["id"], criterion), **result})
     states = {item["state"] for item in criteria if item["state"] != "excluded"}
@@ -524,6 +597,7 @@ def _write_table(path, report):
     lines.extend(["", "Inventory: explicitly declared nodes plus observed nodes; the complete compiled graph was not inspected.",
                   "", "Unplanned observed nodes: " + _cell(", ".join(report["unplanned_observed_nodes"]) or "none"), "",
                   "Agent integration acceptance: " + _cell(_fraction(report["agent_acceptance"]["coverage"])),
+                  "Publication policy: " + report["publication_policy"],
                   "Publication ready: " + ("yes" if report["publication_ready"] else "no"), "",
                   "Evidence is local and reviewable; no cloud state or semantic verdict is inferred from execution alone."])
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -540,18 +614,25 @@ def report_progress(root):
     reviews = _receipts(root, ".aidp-local/progress/reviews")
     nodes = [_node(root, config, node, local, reviews, identity, plan) for node in plan["nodes"]]
     known = {node["id"] for node in nodes}
-    observed = {node for row in local if _same_revision(row["value"], identity)
+    candidate_identity = {key: value for key, value in identity.items() if key != "progress_plan_sha256"}
+    observed = {node for row in local if _same_revision(row["value"], candidate_identity)
                 for node in _visited_nodes(row["value"])}
     unplanned = sorted(observed - known)
     acceptance = _agent_acceptance(root, config, plan, reviews, identity)
     criteria = [item for node in nodes for item in node["criteria"]] + acceptance["criteria"]
     excluded = [item for item in criteria if item["state"] == "excluded"]
-    ready = (not excluded and not unplanned and all(node["state"] == "accepted" and node["local"]["required"]
-                                  and node["TEST"]["required"] for node in nodes)
-             and acceptance["state"] == "accepted")
+    policy = plan.get("publication_policy", "strict_node_layers_v1")
+    if policy == "declared_requirements_v1":
+        nodes_ready = all(not node["blocker"]
+                          and all(item["state"] == "passed" for item in node["criteria"]) for node in nodes)
+    else:
+        nodes_ready = all(node["state"] == "accepted" and node["local"]["required"]
+                          and node["TEST"]["required"] for node in nodes)
+    ready = not excluded and not unplanned and nodes_ready and acceptance["state"] == "accepted"
     report = {"version": 1, "recorded_at": datetime.now(timezone.utc).isoformat(), **identity,
               "requirements_ref": plan["requirements_ref"], "nodes": nodes,
               "agent_acceptance": acceptance, "publication_ready": bool(ready),
+              "publication_policy": policy,
               "plan_version": plan["version"], "scope_revision": plan.get("revision"),
               "scope_decisions": plan.get("scope_decisions", []),
               "publication_scope_blocked": bool(excluded),
@@ -663,6 +744,8 @@ def record_test_review(root, node_id, criterion_id, receipt_file, verdict, note)
               "config_sha256": canonical_hash(config), "package_sha256": package_hash,
               "progress_plan_sha256": canonical_hash(plan), "evaluator_version": __version__, **execution_identity(root),
               "recorded_at": datetime.now(timezone.utc).isoformat()}
+    if node_id != "__agent__":
+        record["criterion_bindings"] = {node_id: {criterion_id: criterion_fingerprint(plan, node_id, matches[0])}}
     private_json(_path(root, ".aidp-local/progress/reviews/" + uuid4().hex + ".json"), record)
     return report_progress(root)
 

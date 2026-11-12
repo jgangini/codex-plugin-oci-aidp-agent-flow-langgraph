@@ -125,6 +125,7 @@ class ProgressIntegrationTests(unittest.TestCase):
         receipt_path.write_text("{}", encoding="utf-8")
         received = {"passed": True, "artifact": str(receipt_path), "native_test_accepted": False}
         with patch("aidp_agent_flow.native_lifecycle.NativeLifecycle", return_value=lifecycle), \
+                patch("aidp_agent_flow.native_invoke.preflight_invoke", return_value={"case": {"id": "native", "question": "Synthetic"}}), \
                 patch("aidp_agent_flow.native_invoke.invoke", return_value=received) as invoke, \
                 patch("aidp_agent_flow.progress.report_progress", side_effect=OSError("Private derived failure")), \
                 redirect_stdout(output):

@@ -15,13 +15,24 @@ five unmodified MIT upstream skills with explicit activation. It is not an
 official Codex plugin published by LangChain. Other supported upstream skill
 installations are valid; do not install a duplicate solely for this workflow.
 
-Before using upstream guidance, verify the installed AIDP package versions and
-Oracle runtime lifecycle. Oracle's current Agent Creation documentation lists
-LangGraph 1.0.1; do not infer every compute has that exact version or override
-platform packages from requirements. Preserve existing supported graph/agent
-constructors, setup/invoke hooks, async/streaming behavior, selected OCI model,
-guardrails and secret bindings. Generic MUST/ALWAYS, latest-version, provider,
-database or tracing examples are not authority to migrate them.
+Before using upstream guidance, verify installed AIDP distribution versions,
+their dependency requirements and the Oracle runtime lifecycle. Oracle's Agent
+Creation documentation still lists LangGraph 1.0.1 (rechecked 2026-11-07); that
+statement is not proof that every managed target can be downgraded to it. A target
+may have newer exact requirements from its managed runtime, utilities, LangChain
+or checkpointer. Preserve that set when the proposed pin conflicts; do not
+install a starter dependency file or bypass a consistency failure simply to
+satisfy the documented-profile gate. Follow the target-conflict procedure in
+[runtime compatibility](runtime-compatibility.md) and retain its dated evidence.
+
+Engine 0.4.9 checks the selected runtime profile with `--require-profile`; the
+historical documentary comparison remains separate. A target match does not
+update Oracle's public support statement. Align the local environment to the verified target contract explicitly,
+then validate the candidate and native memory boundary; installed metadata alone
+is not functional acceptance. Preserve existing supported graph/agent constructors,
+setup/invoke hooks, async/streaming behavior, selected OCI model, guardrails and
+secret bindings. Generic MUST/ALWAYS, latest-version, provider, database or tracing
+examples are not authority to migrate them.
 
 Do not enable external LangSmith tracing or send conversation/evidence outside
 approved destinations by installing a skill. Do not replace Oracle persistence
