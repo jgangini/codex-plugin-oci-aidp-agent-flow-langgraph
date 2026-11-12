@@ -1,5 +1,7 @@
 # Prerrequisitos y credenciales
 
+Prepara el entorno, la identidad OCI y el destino antes de comenzar el desarrollo orientado a AIDP. Después usa el [prompt inicial de bootstrap](guia-de-uso.md#0-prepara-oci-y-comprueba-el-acceso) para comprobarlos. Sólo puedes omitir OCI si eliges exclusivamente la demostración local simulada; retoma estos requisitos antes de usar servicios OCI o desplegar.
+
 ## 1. Entorno local
 
 Para comenzar instala Codex, habilita el plugin y prepara las skills oficiales indicadas a continuación. En el [tutorial](guia-de-uso.md) pides a Codex que compruebe y prepare el entorno mediante bootstrap: Git, `uv`, Python 3.11 o superior y las dependencias del proyecto. Si algún requisito no puede instalarse dentro del acceso disponible, Codex debe indicar la intervención necesaria. Los comandos de la referencia técnica usan PowerShell. En Linux/macOS cambia `Scripts/python.exe` por `bin/python` y `Scripts/aidp-agent-flow.exe` por `bin/aidp-agent-flow`.
@@ -55,7 +57,7 @@ key_file=C:/ruta/absoluta/mi-agente/.oci/key.pem
 
 Usa una ruta absoluta real para `key_file`, también si mueves el proyecto. Para Linux/macOS, por ejemplo `/ruta/mi-agente/.oci/key.pem`. El SDK resuelve la clave a partir de ese campo; colocar un archivo junto a `config` no corrige una ruta equivocada. Si la clave está cifrada, verifica un mecanismo de contraseña compatible con tu entorno; no publiques la contraseña ni supongas que el plugin tiene un diálogo interactivo para pedirla.
 
-En `aidp-agent.toml`:
+Una vez que el bootstrap cree o adopte el proyecto, comprueba estas referencias en `aidp-agent.toml`:
 
 ```toml
 [oci]

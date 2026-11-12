@@ -30,6 +30,8 @@ flowchart TD
 
 Instala el plugin AIDP y las [skills oficiales de LangChain](prerrequisitos.md#skills-oficiales-de-langchain) por separado. El bootstrap comprueba cuáles están disponibles en la sesión y carga las necesarias para el caso. Las skills oficiales orientan sobre el framework; el plugin mantiene el ciclo de desarrollo, evaluación e integración con AIDP. Si falta una skill requerida, se resuelve ese requisito antes de implementar la parte que depende de ella.
 
+Para el recorrido hasta AIDP, prepara también `.oci/config` y la clave privada referenciada, registra su clave pública en OCI y verifica el acceso al destino mediante el [paso 0 del tutorial](guia-de-uso.md#0-prepara-oci-y-comprueba-el-acceso). Esta preparación precede al desarrollo; sólo se omite para una demostración exclusivamente local simulada.
+
 El diagrama comienza después de esta preparación. Tener las skills disponibles no acredita compatibilidad del runtime, resultados de calidad ni autorización para publicar.
 
 ## Qué se comprueba en cada etapa

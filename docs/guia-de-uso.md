@@ -9,9 +9,59 @@ Puedes copiar estos prompts durante una demostración. Usaremos un asistente de 
 1. Instala el plugin siguiendo la [instalación del README](../README.md#instalación-en-codex).
 2. Instala las [skills oficiales de LangChain](prerrequisitos.md#skills-oficiales-de-langchain), o reutiliza tu instalación si ya está disponible en Codex. No vienen incluidas en el plugin AIDP.
 3. Crea una carpeta para tu agente y ábrela como proyecto en Codex. Empieza un chat nuevo y comprueba que el plugin esté habilitado. Puedes seleccionarlo desde el selector de plugins y escribir su nombre en tu mensaje.
-4. Para comenzar no necesitas OCI: se desarrolla y prueba con datos ficticios. Para modelos reales y AIDP necesitarás recursos, permisos y presupuesto.
+4. Prepara OCI y verifica el acceso con el paso 0 antes de desarrollar el agente. Necesitas una identidad autorizada y un destino AIDP para completar el recorrido.
+
+**Sólo para una demostración local simulada:** puedes omitir la preparación de OCI y realizar los pasos 1 a 3 sin cuenta ni claves. Indícaselo a Codex. Antes de probar modelos en OCI o desplegar en AIDP, vuelve al paso 0. Un proveedor de modelos externo usa sus propias credenciales; no sustituye la identidad OCI necesaria para operar AIDP.
 
 El bootstrap ayuda a preparar o reparar el entorno local y sus dependencias. Pídele que lo ejecute: instalar el plugin o cargar una skill no inicia esa preparación automáticamente. Si falta un programa o permiso que Codex no puede preparar, debe indicarlo. El bootstrap no crea por sí solo una plataforma AIDP ni permisos en Oracle.
+
+## 0. Prepara OCI y comprueba el acceso
+
+Para completar esta guía hasta AIDP, prepara estos requisitos al inicio:
+
+- Una cuenta OCI y un usuario autorizado para el compartimento, los modelos y el destino del proyecto. Una clave válida por sí sola no concede permisos.
+- Una clave de API de OCI: registra la **clave pública** en tu usuario y conserva la **privada** localmente. Si ya tienes una configuración válida, reutilízala.
+- Región y compartimento autorizados; para TEST, una plataforma AIDP, workspace y AI Compute compatibles. Si falta alguno, identifica con tu administrador cómo prepararlo antes del despliegue; el bootstrap no los crea automáticamente.
+
+Organiza los archivos privados en la carpeta que abriste en Codex:
+
+```text
+mi-agente-atencion/
+  .oci/
+    config
+    key.pem
+```
+
+Sigue el [ejemplo de configuración OCI](prerrequisitos.md#2-carpeta-oci-del-proyecto) para completar `config`. Su campo `key_file` debe apuntar a la ruta absoluta real de `key.pem`. Este archivo contiene la clave privada de firma, no una API key del proveedor del modelo. Puedes usar otro nombre o una configuración existente si referencias correctamente su ubicación.
+
+Excluye `.oci/` y las claves de Git y del paquete del agente. No pegues secretos en el chat ni los muestres en el video. Las credenciales que el agente usará dentro de AIDP se preparan después mediante sus referencias nativas; **no se sube tu clave privada de OCI al agente**.
+
+Con los archivos preparados, copia este prompt y sustituye los corchetes:
+
+```text
+Usa el bootstrap de AIDP Agent Flow LangGraph para preparar este proyecto
+antes de desarrollar el agente.
+
+Configuración OCI: .oci/config. Perfil: DEFAULT.
+Clave privada: la ruta indicada por key_file, prevista en .oci/key.pem.
+Región y compartimento autorizados: [región y nombre o identificador].
+Destino AIDP: [plataforma, workspace y compute existentes; indica si falta alguno].
+
+Comprueba las skills oficiales disponibles y prepara el entorno local dentro
+de este proyecto, reutilizando lo instalado. Preserva los archivos existentes.
+Verifica config, la ruta de la clave y su exclusión de Git y del paquete sin
+mostrar ni copiar secretos. Crea o ajusta las referencias de configuración del
+proyecto cuando corresponda.
+
+Autorizo consultas de sólo lectura para comprobar la autenticación y el acceso
+a los recursos indicados mediante las operaciones verificadas del plugin.
+Distingue entorno local preparado, autenticación válida y acceso al destino.
+No invoques modelos ni agentes, no crees o inicies recursos y no publiques.
+Si falta acceso o algún recurso, identifica qué falta y cómo resolverlo.
+Entrega el resultado de las comprobaciones antes de implementar el caso.
+```
+
+**Qué revisar:** Codex debe informar qué comprobó realmente, con qué perfil y destino, sin mostrar secretos. Leer `config` no demuestra acceso remoto; una consulta autorizada debe confirmarlo. Una comprobación parcial tampoco acredita todos los permisos de despliegue. Si falta un requisito, resuélvelo antes de depender de él; puedes continuar expresamente con la demostración local simulada mientras tanto.
 
 ## 1. Pide el agente que quieres construir
 
@@ -24,7 +74,8 @@ en esta carpeta un agente de atención al cliente para la tienda ficticia Norte.
 Quiero que converse en español y ayude a consultar pedidos, explicar la política
 de devoluciones y decidir cuándo debe intervenir una persona.
 
-Prepara el entorno local y las dependencias necesarias con el bootstrap.
+Reutiliza el entorno y las comprobaciones del paso 0. Si elegí sólo la
+demostración simulada, prepara el entorno local sin consultar OCI.
 Comprueba las skills oficiales de LangChain disponibles y usa las pertinentes
 para diseñar el agente. Si falta alguna necesaria, indica cuál y cómo instalarla
 desde la fuente oficial; no dupliques una instalación existente.
@@ -96,28 +147,15 @@ con los que ya funcionaban. Conserva el historial.
 
 Describe el comportamiento deseado; Codex debe rastrear la parte responsable sin que tengas que indicar una función Python.
 
-## 4. Prepara OCI y prueba un modelo real
+## 4. Prueba un modelo real con el acceso preparado
 
-Coloca los archivos privados en la carpeta de tu proyecto:
-
-```text
-mi-agente-atencion/
-  .oci/
-    config
-    key.pem
-```
-
-El campo `key_file` de `config` debe apuntar a la ruta absoluta real de `key.pem`. Este último contiene la clave privada; la clave pública correspondiente debe estar registrada en tu usuario OCI. Consulta el [ejemplo de configuración](prerrequisitos.md#2-carpeta-oci-del-proyecto). No pegues claves en el chat ni las muestres en el video.
-
-La autenticación local y las credenciales que usará el agente dentro de AIDP son capas distintas. Codex debe preparar sus referencias sin incluir `.oci` en el paquete.
-
-Sustituye los corchetes antes de enviar:
+Reutiliza el acceso comprobado en el paso 0. Si elegiste la demostración simulada, completa primero esa preparación. No vuelvas a crear claves ni a configurar otro destino para este paso. Sustituye los corchetes antes de enviar:
 
 ```text
-Usa el bootstrap del plugin para comprobar OCI y preparar las pruebas con
-modelo real de nuestro agente. El perfil está en .oci/config y su clave
-referenciada en .oci/key.pem. Úsalos sin mostrar secretos y comprueba
-que estén excluidos de Git y del paquete.
+Usa el plugin para preparar las pruebas con modelo real de nuestro agente.
+Reutiliza el perfil OCI y las referencias del paso 0. Si el acceso cambió o
+caducó, compruébalo de nuevo sin mostrar secretos. Conserva la exclusión
+de las credenciales de Git y del paquete.
 
 Modelo: [nombre o identificador; si no sé, revisa los disponibles en mi región
 y ayúdame a elegir uno compatible con este caso].
@@ -137,7 +175,7 @@ Para otro proveedor, Codex debe comprobar o implementar el adaptador necesario. 
 
 ## 5. Lleva el agente a AIDP TEST
 
-Necesitas una plataforma AIDP, workspace y compute compatibles disponibles. Si faltan, Codex debe identificar el requisito; instalar el plugin no los provisiona. Completa el destino y los límites:
+Reutiliza la plataforma AIDP, workspace y compute del paso 0. Si entonces faltaba algún recurso o permiso, resuélvelo antes de desplegar; instalar el plugin no los provisiona. Confirma el destino y los límites:
 
 ```text
 Usa el plugin AIDP Agent Flow LangGraph para desplegar y validar este agente
@@ -191,7 +229,8 @@ El mismo recorrido sirve para soporte interno, análisis de mercado, consulta do
 
 ```text
 Usa el plugin AIDP Agent Flow LangGraph para desarrollar un agente de [objetivo]
-para [usuarios]. Trabaja aquí y prepara el entorno con su bootstrap.
+para [usuarios]. Trabaja aquí. Reutiliza la preparación de OCI y del entorno
+del paso 0; si falta, compruébala primero con el bootstrap.
 
 Debe resolver: [tareas concretas y ejemplos de preguntas].
 Fuentes o sistemas: [documentos, APIs, datos y accesos autorizados].
@@ -217,7 +256,7 @@ integraciones reales. Explícame cómo usar y mantener el agente al terminar.
 
 | Momento | Qué muestras |
 | --- | --- |
-| Preparación | Plugin habilitado y carpeta abierta |
+| Preparación | Plugin y skills habilitados; carpeta `.oci` sin abrir secretos y resultado de acceso del bootstrap |
 | Petición | Prompt de negocio con tareas y restricciones |
 | Desarrollo | Codex prepara el entorno, implementa y ejecuta pruebas |
 | Comprobación | Preguntas normales, ambigüedad y un caso que no debe inventar |
