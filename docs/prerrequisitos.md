@@ -2,7 +2,7 @@
 
 ## 1. Entorno local
 
-Instala Git, Codex con soporte de plugins, `uv` y Python 3.11 o superior. Los comandos del tutorial usan PowerShell. En Linux/macOS cambia `Scripts/python.exe` por `bin/python` y `Scripts/aidp-agent-flow.exe` por `bin/aidp-agent-flow`.
+Para comenzar instala Codex y habilita el plugin. En el [tutorial](guia-de-uso.md) pides a Codex que compruebe y prepare el entorno mediante bootstrap: Git, `uv`, Python 3.11 o superior y las dependencias del proyecto. Si algún requisito no puede instalarse dentro del acceso disponible, Codex debe indicar la intervención necesaria. Los comandos de la referencia técnica usan PowerShell. En Linux/macOS cambia `Scripts/python.exe` por `bin/python` y `Scripts/aidp-agent-flow.exe` por `bin/aidp-agent-flow`.
 
 El entorno del CLI es independiente del entorno del agente. Fija sus versiones; no reemplaces un ejecutable compartido mientras otra campaña lo utiliza. La plantilla usa por defecto el perfil `aidp-managed-1.2.4`; el perfil histórico de LangGraph 1.0.1 se selecciona explícitamente. Comprueba el runtime observado de tu AIDP antes de aceptar compatibilidad: el perfil no constituye certificación de Oracle.
 

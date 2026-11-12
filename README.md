@@ -4,7 +4,21 @@ Plugin **0.4.45** para crear, auditar y mejorar agentes LangGraph destinados a O
 
 **La forma de trabajo es:** definir el resultado esperado → desarrollar y probar localmente → aceptar la revisión en AIDP TEST → publicar esa revisión → registrar y comprobar el acceso en Agent Hub.
 
-El motor ejecuta la factory del proyecto con adaptadores de modelo y servicios inyectados. El corpus define entradas y comprobaciones; los recibos identifican código, configuración y entorno. Las skills guían el diagnóstico y las operaciones CLI. El plugin no genera automáticamente la lógica de negocio ni garantiza calidad por aprobar un formato.
+Describe en lenguaje natural qué debe resolver tu agente, con qué fuentes y qué límites. Codex usa las skills del plugin para preparar el entorno con bootstrap, implementar el caso, probarlo y operar AIDP mediante el motor CLI. Tú aportas las decisiones de negocio, credenciales y autorizaciones necesarias.
+
+## Tu primer agente
+
+Abre una carpeta en Codex, selecciona el plugin y envía:
+
+```text
+Usa AIDP Agent Flow LangGraph para crear un agente de atención al cliente.
+Prepara el entorno con su bootstrap. Debe consultar pedidos ficticios,
+explicar una política de devoluciones y pedir aclaración cuando falten datos.
+Implementa y prueba primero un recorrido local sin consumo ni cambios en OCI.
+Después guíame para validarlo en AIDP TEST y publicarlo cuando lo autorice.
+```
+
+El [tutorial para usuarios](docs/guia-de-uso.md) desarrolla ese caso con prompts completos, preguntas de prueba, mejoras y publicación en Agent Hub. Incluye una plantilla adaptable a otros agentes y una secuencia para grabar una demostración. La [referencia CLI](docs/referencia-cli.md) queda disponible para quien necesite comandos técnicos.
 
 Este repositorio sigue la distribución de [AIDP Migration Workbench](https://github.com/jgangini/codex-plugin-oci-aidp-migration-workbench): marketplace en `.agents/plugins/`, paquete en `plugins/`, documentación y scripts de validación. La identidad interna se conserva como `langchain-skills-codex`; el nombre visible es **AIDP Agent Flow LangGraph**.
 
@@ -12,7 +26,7 @@ Este repositorio sigue la distribución de [AIDP Migration Workbench](https://gi
 
 | Quiero… | Documento |
 | --- | --- |
-| Instalar y ejecutar mi primera prueba | [Guía paso a paso](docs/guia-de-uso.md) |
+| Crear mi agente conversando con Codex | [Tutorial con prompts para copiar](docs/guia-de-uso.md) |
 | Preparar `.oci/config` y `.oci/key.pem` | [Credenciales y prerrequisitos](docs/prerrequisitos.md) |
 | Diseñar preguntas, corpus y criterios | [Corpus y pruebas](docs/corpus-y-pruebas.md) |
 | Pedir a Codex que cree o mejore un agente | [Prompts para copiar](docs/prompts.md) |
@@ -41,7 +55,7 @@ Para actualizar un marketplace no fijado a un tag:
 codex plugin marketplace upgrade oci-aidp-agent-flow-langgraph
 ```
 
-Instalar las skills no instala automáticamente el CLI, no crea recursos OCI y no cambia agentes existentes. El [tutorial](docs/guia-de-uso.md) explica la instalación separada del motor.
+Una vez habilitado el plugin, pide a Codex que prepare el entorno con su bootstrap. Codex comprueba el motor y las dependencias y los prepara dentro del alcance autorizado; si falta un requisito que no puede instalar, lo informa. La [referencia CLI](docs/referencia-cli.md) conserva la instalación manual. Los recursos y permisos de OCI se preparan por separado.
 
 ## Qué necesitas
 
