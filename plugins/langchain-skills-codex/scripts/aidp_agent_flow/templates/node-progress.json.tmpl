@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "requirements_ref": "README.md",
+  "acceptance": [
+    {
+      "id": "agent-response",
+      "description": "Review the integrated native TEST response, references and identity against the full agent rubric before publication.",
+      "layer": "TEST",
+      "case_id": "agent-native-acceptance",
+      "weight": 1
+    }
+  ],
+  "nodes": [
+    {
+      "id": "respond",
+      "implementation": "declared",
+      "criteria": [
+        {
+          "id": "graph-response",
+          "description": "The example graph returns the recorded response through respond.",
+          "layer": "local",
+          "case_id": "graph-fixture",
+          "cases_file": "tests/cases.json",
+          "mode": "fixture",
+          "weight": 1
+        },
+        {
+          "id": "node-response",
+          "description": "The example respond node returns its recorded response in isolation.",
+          "layer": "local",
+          "case_id": "node-fixture",
+          "cases_file": "tests/cases.json",
+          "mode": "fixture",
+          "weight": 1
+        },
+        {
+          "id": "native-response",
+          "description": "Review the response, actual served revision and identity in native TEST against the project's functional rubric.",
+          "layer": "TEST",
+          "case_id": "respond-native",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

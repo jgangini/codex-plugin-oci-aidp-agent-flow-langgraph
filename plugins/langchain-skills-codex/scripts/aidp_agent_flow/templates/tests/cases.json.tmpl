@@ -1,0 +1,18 @@
+[
+  {
+    "id": "graph-fixture",
+    "input": {"question": "Summarize the supplied evidence."},
+    "model_responses": ["Recorded fixture response"],
+    "expected_nodes": ["respond"],
+    "require_model_call": true,
+    "assertions": [{"path": "answer", "equals": "Recorded fixture response"}]
+  },
+  {
+    "id": "node-fixture",
+    "node": "respond",
+    "input": {"question": "Summarize the supplied evidence."},
+    "model_responses": ["Recorded node response"],
+    "expected_nodes": ["respond"],
+    "assertions": [{"path": "answer", "equals": "Recorded node response"}]
+  }
+]

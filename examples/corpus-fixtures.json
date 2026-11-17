@@ -1,0 +1,26 @@
+[
+  {
+    "id": "soporte-grafo",
+    "input": {"question": "Evidencia: el pedido 1001 está enviado. ¿Cuál es su estado?"},
+    "model_responses": ["El pedido 1001 está enviado."],
+    "expected_nodes": ["respond"],
+    "require_model_call": true,
+    "trace_boundaries": true,
+    "assertions": [{"path": "answer", "equals": "El pedido 1001 está enviado."}]
+  },
+  {
+    "id": "soporte-nodo",
+    "node": "respond",
+    "input": {"question": "Evidencia: las devoluciones admitidas tienen un plazo de 14 días. ¿Cuál es el plazo?"},
+    "model_responses": ["El plazo es de 14 días."],
+    "expected_nodes": ["respond"],
+    "assertions": [{"path": "answer", "contains": "14 días"}]
+  },
+  {
+    "id": "soporte-aclaracion-grabada",
+    "input": {"question": "¿Cómo va lo mío?"},
+    "model_responses": ["¿Cuál es el número de pedido que quieres consultar?"],
+    "expected_nodes": ["respond"],
+    "assertions": [{"path": "answer", "equals": "¿Cuál es el número de pedido que quieres consultar?"}]
+  }
+]

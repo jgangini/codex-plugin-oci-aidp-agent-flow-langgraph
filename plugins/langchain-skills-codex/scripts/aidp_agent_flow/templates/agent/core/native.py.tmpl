@@ -1,0 +1,38 @@
+"""Native integration is configured separately and verified on the target AIDP."""
+import json
+from pathlib import Path
+from .model_boundary import final_text, run_blocking
+
+
+class NativeModel:
+    def __init__(self, client, settings):
+        self.client, self.settings = client, settings
+
+    async def complete(self, system, question):
+        import oci
+        models = oci.generative_ai_inference.models
+        details = models.ChatDetails(compartment_id=self.settings["compartment_id"],
+            serving_mode=models.OnDemandServingMode(model_id=self.settings["model_id"]),
+            chat_request=models.GenericChatRequest(temperature=0, max_tokens=self.settings["max_tokens"],
+                is_stream=False, messages=[models.SystemMessage(content=[models.TextContent(text=system)]),
+                    models.UserMessage(content=[models.TextContent(text=question)])]))
+        result = await run_blocking(self.client.chat, details)
+        response = getattr(getattr(result, "data", None), "chat_response", None)
+        return final_text(response)
+
+
+def native_runtime(checkpointer):
+    import aidputils
+    import oci
+    settings = json.loads(Path(__file__).parents[1].joinpath("runtime.json").read_text(encoding="utf-8"))
+    if any(not settings.get(key) for key in ("credential_name", "region", "model_id", "compartment_id")):
+        raise RuntimeError("Native runtime binding must be configured and accepted before publication")
+    identity = {key: aidputils.secrets.get(name=settings["credential_name"], key=key)
+                for key in ("tenancy", "user", "fingerprint", "private_key")}
+    signer = oci.signer.Signer(identity["tenancy"], identity["user"], identity["fingerprint"],
+                              private_key_file_location=None, private_key_content=identity["private_key"])
+    sdk_config = {key: identity[key] for key in ("tenancy", "user", "fingerprint")}
+    sdk_config.update(region=settings["region"], key_content=identity["private_key"])
+    client = oci.generative_ai_inference.GenerativeAiInferenceClient(sdk_config,
+        signer=signer, retry_strategy=oci.retry.NoneRetryStrategy(), timeout=(5, 60))
+    return {"model": NativeModel(client, settings), "checkpointer": checkpointer, "external_effects_allowed": False}

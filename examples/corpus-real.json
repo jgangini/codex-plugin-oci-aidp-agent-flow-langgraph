@@ -1,0 +1,12 @@
+[
+  {
+    "id": "soporte-evidencia-real",
+    "input": {"question": "Evidencia suministrada: el pedido 1001 está enviado. Responde en español cuál es el estado del pedido, sin inventar una fecha de entrega ni afirmar que consultaste sistemas externos."},
+    "expected_nodes": ["respond"],
+    "require_model_call": true,
+    "assertions": [
+      {"path": "answer", "contains": "1001"},
+      {"path": "answer", "contains": "enviado"}
+    ]
+  }
+]

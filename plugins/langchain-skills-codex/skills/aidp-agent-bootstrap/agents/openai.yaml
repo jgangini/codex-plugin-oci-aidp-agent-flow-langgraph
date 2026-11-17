@@ -1,0 +1,7 @@
+interface:
+  icon_small: "../../assets/icon.svg"
+  icon_large: "../../assets/logo.png"
+  brand_color: "#C74634"
+  display_name: "AIDP Agent Bootstrap"
+  short_description: "Preparar el entorno y acceso al agente de TEST"
+  default_prompt: "Usa $aidp-agent-bootstrap para verificar y preparar el entorno existente de mi agente AIDP antes del desarrollo en TEST."

@@ -1,0 +1,17 @@
+"""AIDP entry; local tests import the same core graph directly."""
+from core.graph import build_graph
+from core.model_boundary import final_text_scope
+from langchain_core.messages import AIMessage
+
+
+class Agent:
+    def setup(self):
+        from core.native import native_runtime
+        self.graph = build_graph(native_runtime(globals().get("checkpointer")))
+
+    async def invoke(self, user_query, **kwargs):
+        from aidputils.agents.toolkit.agent_helper import pre_invoke_setup
+        config = pre_invoke_setup(**kwargs)
+        with final_text_scope():
+            result = await self.graph.ainvoke({"question": user_query}, config=config)
+        return {"messages": [AIMessage(content=result["answer"])]}

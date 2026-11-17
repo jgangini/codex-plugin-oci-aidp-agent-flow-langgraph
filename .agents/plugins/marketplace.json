@@ -1,0 +1,10 @@
+{
+  "name": "oci-aidp-agent-flow-langgraph",
+  "interface": {"displayName": "OCI AIDP Agent Flow LangGraph"},
+  "plugins": [{
+    "name": "langchain-skills-codex",
+    "source": {"source": "local", "path": "./plugins/langchain-skills-codex"},
+    "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+    "category": "OCI"
+  }]
+}

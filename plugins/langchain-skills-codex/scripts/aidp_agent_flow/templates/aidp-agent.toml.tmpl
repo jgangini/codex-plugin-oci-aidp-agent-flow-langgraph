@@ -1,0 +1,25 @@
+[agent]
+factory = "core.graph:build_graph"
+python_path = "agent"
+entry = "agent/agent.py"
+dependencies = "agent/requirements.txt"
+
+[oci]
+config_file = ".oci/config"
+profile = "DEFAULT"
+
+[model]
+region = ""
+model_id = ""
+compartment_id = ""
+max_tokens = 512
+max_calls = 3
+
+[native]
+endpoint = ""
+platform_id = ""
+workspace_key = ""
+agent_key = ""
+remote_root = ""
+display_name = ""
+compute_key = ""

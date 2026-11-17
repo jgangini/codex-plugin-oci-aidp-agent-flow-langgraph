@@ -1,0 +1,103 @@
+"""Validate the public distribution and run its existing offline regression suite."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tomllib
+from urllib.parse import unquote
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = ROOT / "plugins" / "langchain-skills-codex"
+AIDP_SKILLS = {
+    "aidp-agent-bootstrap", "aidp-agent-flow-langgraph",
+    "aidp-langgraph-test", "aidp-runtime-credentials",
+}
+
+
+def load_json(path):
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def check_manifest():
+    manifest = load_json(PLUGIN / ".codex-plugin" / "plugin.json")
+    with (PLUGIN / "pyproject.toml").open("rb") as stream:
+        package = tomllib.load(stream)
+    # Skills and executable have independent versions; the two engine identities must match.
+    engine = (PLUGIN / "scripts/aidp_agent_flow/__init__.py").read_text(encoding="utf-8")
+    match = re.search(r'__version__ = "([^"]+)"', engine)
+    if not match or match.group(1) != package["project"]["version"]:
+        raise ValueError("Python package and executable versions differ")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", manifest["version"]):
+        raise ValueError("Invalid plugin version")
+    marketplace = load_json(ROOT / ".agents" / "plugins" / "marketplace.json")
+    entry = marketplace["plugins"][0]
+    if entry["name"] != manifest["name"] or (ROOT / entry["source"]["path"]).resolve() != PLUGIN:
+        raise ValueError("Marketplace does not resolve to this plugin")
+    for skill in manifest["skills"]:
+        if not (PLUGIN / skill / "SKILL.md").is_file():
+            raise ValueError(f"Missing skill: {skill}")
+    check_skill_boundary(manifest["skills"])
+    for asset in ("composerIcon", "logo"):
+        if not (PLUGIN / manifest["interface"][asset]).is_file():
+            raise ValueError(f"Missing asset: {asset}")
+    return manifest["version"]
+
+
+def check_skill_boundary(declared):
+    expected = {f"./skills/{name}/" for name in AIDP_SKILLS}
+    if set(declared) != expected or len(declared) != len(expected):
+        raise ValueError("Manifest must declare only the four AIDP skills")
+    shipped = {path.name for path in (PLUGIN / "skills").iterdir()}
+    if shipped != AIDP_SKILLS:
+        raise ValueError("Package must contain only the four AIDP skills; install framework skills separately")
+
+
+def check_examples():
+    sys.path.insert(0, str(PLUGIN / "scripts"))
+    from aidp_agent_flow.cases import validate_case
+
+    for path in (ROOT / "examples").glob("corpus-*.json"):
+        for case in load_json(path):
+            validate_case(case)
+
+
+def check_documentation():
+    pages = [ROOT / "README.md", *(ROOT / "docs").rglob("*.md"),
+             *(PLUGIN / "skills").rglob("*.md")]
+    for page in pages:
+        if "oracle.enterprise.slack.com" in page.read_text(encoding="utf-8").casefold():
+            raise ValueError("Internal enterprise links cannot be distributed publicly")
+        for target in re.findall(r"\]\(([^\s)]+)\)", page.read_text(encoding="utf-8")):
+            if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target) or target.startswith("#"):
+                continue
+            local = unquote(target.split("#", 1)[0])
+            if not (page.parent / local).exists():
+                raise ValueError(f"Broken link in {page.relative_to(ROOT)}: {target}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--package-only", action="store_true", help="Skip the engine regression suite")
+    args = parser.parse_args()
+    version = check_manifest()
+    check_examples()
+    check_documentation()
+    print(f"Distribution {version}: marketplace, AIDP skill boundary, assets, corpus and local links OK", flush=True)
+    if not args.package_only:
+        subprocess.run([sys.executable, "-m", "unittest", "discover", "-s",
+                        str(ROOT / "scripts/tests"), "-q"], check=True)
+        (ROOT / "plugins" / "validation-work").mkdir(exist_ok=True)
+        env = dict(os.environ, PYTHONPATH=str(PLUGIN / "scripts"))
+        subprocess.run(
+            [sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-q"],
+            cwd=PLUGIN, env=env, check=True,
+        )
+
+
+if __name__ == "__main__":
+    main()
