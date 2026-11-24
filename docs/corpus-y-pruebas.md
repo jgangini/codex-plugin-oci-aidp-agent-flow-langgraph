@@ -49,7 +49,11 @@ Para servicios grabados, consulta [el contrato de servicios](../plugins/langchai
 
 ## Seleccionar una prueba útil
 
-Con `$Flow` y `$Proyecto` definidos en el tutorial:
+Define `$Flow` y `$Proyecto` y copia el corpus de ejemplo siguiendo la
+[referencia del CLI](referencia-cli.md#2-crear-el-proyecto-y-ejecutar-el-ejemplo-sin-oci).
+Si ya ejecutaste el corpus completo con esa revisión, consulta el recibo de
+`soporte-nodo`. Usa este comando de ejecución para probar el caso por primera vez
+o para comprobar un candidato distinto.
 
 ```powershell
 & $Flow --project $Proyecto --json test --cases tests/corpus-fixtures.json --plan

@@ -2,7 +2,7 @@
 
 Para desarrollar mediante lenguaje natural, empieza por el [tutorial con prompts](guia-de-uso.md). Esta referencia explica los comandos que Codex puede ejecutar durante ese recorrido.
 
-El ejemplo siguiente comprueba la instalación y el ejecutor con un agente mínimo. No construye automáticamente un agente de negocio terminado. Para implementar tu caso usa los [prompts](prompts.md) y define el [corpus](corpus-y-pruebas.md).
+El ejemplo siguiente comprueba la instalación y el ejecutor con un agente mínimo. No construye automáticamente un agente de negocio terminado. Para implementar tu caso usa los [prompts de la guía de uso](guia-de-uso.md#prompts-para-otros-escenarios) y define el [corpus](corpus-y-pruebas.md).
 
 Consulta el [flujo de desarrollo](flujo-de-desarrollo.md) para entender las decisiones y los retornos de este recorrido. El paquete se distribuye bajo [licencia MIT](../LICENSE).
 

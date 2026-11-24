@@ -1,91 +1,57 @@
-# OCI AIDP Agent Flow LangGraph para Codex
+<p align="center">
+  <img src="docs/assets/aidp-agent-flow-cover.png" width="224" alt="Panda rojo con un mapa de nodos conectados y una señal de aprobación">
+</p>
 
-Plugin **0.4.46** para crear, auditar y mejorar agentes LangGraph destinados a Oracle AI Data Platform (AIDP). Incluye skills para Codex y un CLI Python para preparar proyectos, probar nodos y recorridos, registrar evidencia y operar el ciclo nativo autorizado.
+<h3 align="center">AIDP Agent Flow LangGraph</h3>
 
-**La forma de trabajo es:** preparar OCI y comprobar el entorno/acceso → definir el resultado esperado → desarrollar y probar localmente → aceptar la revisión en AIDP TEST → publicar esa revisión → registrar y comprobar el acceso en Agent Hub.
+<p align="center">Crea y prueba agentes LangGraph en Codex, desde una demo local hasta una revisión aceptada en Oracle AI Data Platform.</p>
 
-Describe en lenguaje natural qué debe resolver tu agente, con qué fuentes y qué límites. Codex usa las skills del plugin para preparar el entorno con bootstrap, implementar el caso, probarlo y operar AIDP mediante el motor CLI. Tú aportas las decisiones de negocio, credenciales y autorizaciones necesarias.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-MIT-165D63?style=flat-square" alt="Licencia MIT"></a>
+  <a href="https://github.com/jgangini/codex-plugin-oci-aidp-agent-flow-langgraph/tree/v0.4.46"><img src="https://img.shields.io/badge/Plugin-0.4.46-C74634?style=flat-square" alt="Versión del plugin 0.4.46"></a>
+  <a href="docs/referencia-cli.md#1-instalar-un-motor-versionado"><img src="https://img.shields.io/badge/CLI-0.4.31-303640?style=flat-square" alt="Motor CLI 0.4.31"></a>
+</p>
 
-## Tu primer agente
+<p align="center"><strong>Tecnologías</strong></p>
 
-Antes de desarrollar para AIDP, instala el plugin y las skills oficiales, abre una carpeta de proyecto y prepara **`.oci/config` y `.oci/key.pem`**. Registra la clave pública en OCI, referencia la privada mediante `key_file` y verifica permisos y destino. Ejecuta el [prompt de preparación y comprobación de acceso](docs/guia-de-uso.md#0-prepara-oci-y-comprueba-el-acceso); después selecciona el plugin y envía:
+<p align="center">
+  <a href="docs/prerrequisitos.md"><img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.11 o superior"></a>
+  <a href="docs/flujo-de-desarrollo.md"><img src="https://img.shields.io/badge/LangGraph-Flujos-176D67?style=flat-square" alt="LangGraph para los flujos del agente"></a>
+  <a href="docs/guia-de-uso.md#0-prepara-oci-y-comprueba-el-acceso"><img src="https://img.shields.io/badge/Oracle-AIDP-C74634?style=flat-square" alt="Oracle AI Data Platform para la ejecución nativa"></a>
+</p>
 
-```text
-Usa AIDP Agent Flow LangGraph para crear un agente de atención al cliente.
-Reutiliza el entorno y el acceso comprobados con el bootstrap.
-Debe consultar pedidos ficticios,
-explicar una política de devoluciones y pedir aclaración cuando falten datos.
-Implementa y prueba primero un recorrido local sin consumo ni cambios en OCI.
-Después guíame para validarlo en AIDP TEST y publicarlo cuando lo autorice.
-```
+<p align="center">
+  <a href="#instalación-en-codex">Instalación</a> ·
+  <a href="docs/guia-de-uso.md#1-crea-tu-primer-agente-en-local">Primera demo</a> ·
+  <a href="docs/flujo-de-desarrollo.md">Arquitectura</a> ·
+  <a href="docs/corpus-y-pruebas.md">Pruebas</a>
+</p>
 
-Si sólo quieres una demostración local simulada, puedes omitir OCI y pedir al bootstrap que prepare únicamente el entorno local. Completa la preparación de acceso antes de usar servicios OCI o AIDP.
+## Qué puedes hacer
 
-El [tutorial para usuarios](docs/guia-de-uso.md) desarrolla ese caso con prompts completos, preguntas de prueba, mejoras y publicación en Agent Hub. Incluye una plantilla adaptable a otros agentes y una secuencia para grabar una demostración. La [referencia CLI](docs/referencia-cli.md) queda disponible para quien necesite comandos técnicos.
+- **Probar una idea.** Describe el comportamiento esperado y valida un recorrido con datos ficticios, sin cuenta OCI.
+- **Evaluar un agente existente.** Aísla un nodo o una ruta, registra evidencia comparable y revisa el resultado por criterio.
+- **Llevarlo a AIDP.** Prepara el acceso, acepta una revisión en TEST y, con autorización, publica esa revisión y comprueba una conversación en Agent Hub.
 
-Este repositorio sigue la distribución de [AIDP Migration Workbench](https://github.com/jgangini/codex-plugin-oci-aidp-migration-workbench): marketplace en `.agents/plugins/`, paquete en `plugins/`, documentación y scripts de validación. La identidad interna se conserva como `langchain-skills-codex`; el nombre visible es **AIDP Agent Flow LangGraph**.
-
-## Empieza aquí
-
-| Quiero… | Documento |
-| --- | --- |
-| Crear mi agente conversando con Codex | [Tutorial con prompts para copiar](docs/guia-de-uso.md) |
-| Preparar `.oci/config` y `.oci/key.pem` | [Credenciales y prerrequisitos](docs/prerrequisitos.md) |
-| Diseñar preguntas, corpus y criterios | [Corpus y pruebas](docs/corpus-y-pruebas.md) |
-| Pedir a Codex que cree o mejore un agente | [Prompts para copiar](docs/prompts.md) |
-| Comprender el ciclo de trabajo | [Flujo de desarrollo](docs/flujo-de-desarrollo.md) |
-| Mantener o contribuir al plugin | [Desarrollo del plugin](docs/desarrollo.md) |
+Tú defines el objetivo, los accesos y las decisiones de negocio. Codex prepara el proyecto, implementa el flujo y usa el motor CLI para comprobarlo.
 
 ## Instalación en Codex
 
-Con una versión de Codex que incluya `plugin marketplace`:
+Con un cliente que admita marketplaces:
 
 ```powershell
 codex plugin marketplace add jgangini/codex-plugin-oci-aidp-agent-flow-langgraph
+codex plugin add langchain-skills-codex@oci-aidp-agent-flow-langgraph
 ```
 
-Para fijar la versión publicada:
+Para instalar desde la etiqueta publicada del plugin, añade `@v0.4.46` al nombre del repositorio en el primer comando. El nombre visible es **AIDP Agent Flow LangGraph**. Instala por separado las [skills oficiales de LangChain](docs/prerrequisitos.md#skills-oficiales-de-langchain), abre la carpeta de tu agente y empieza un chat nuevo.
 
-```powershell
-codex plugin marketplace add jgangini/codex-plugin-oci-aidp-agent-flow-langgraph@v0.4.46
-```
+## Documentación
 
-En Codex abre la lista de plugins, instala **AIDP Agent Flow LangGraph** y comienza un chat nuevo para cargar sus skills. Si ya usas una instalación local del mismo plugin, elige una sola procedencia para evitar instrucciones duplicadas. No cambies el motor de una campaña activa sin revisar su adopción.
-
-Para actualizar un marketplace no fijado a un tag:
-
-```powershell
-codex plugin marketplace upgrade oci-aidp-agent-flow-langgraph
-```
-
-Una vez habilitado el plugin, pide a Codex que prepare el entorno con su bootstrap. Codex comprueba el motor y las dependencias y los prepara dentro del alcance autorizado; si falta un requisito que no puede instalar, lo informa. La [referencia CLI](docs/referencia-cli.md) conserva la instalación manual. Los recursos y permisos de OCI se preparan por separado.
-
-## Qué necesitas
-
-- Codex con el plugin y las [skills oficiales de LangChain](docs/prerrequisitos.md#skills-oficiales-de-langchain) disponibles, Git, `uv` y Python 3.11 o superior.
-- Para el recorrido con OCI y AIDP: una identidad OCI autorizada, recursos de destino y la carpeta privada del proyecto **`.oci/` con `config` y `key.pem`**, preparados antes de desarrollar. La clave pública correspondiente debe estar registrada en OCI. Un modelo externo requiere además sus propias credenciales.
-- Para TEST nativo: workspace, AI Compute compatible y permisos para el agente seleccionado. El plugin no crea toda esa infraestructura al instalarse.
-- Excepción: para pruebas exclusivamente locales simuladas, **no necesitas cuenta OCI ni claves**.
-
-Nunca subas `.oci`, claves ni recibos privados a GitHub. Este repositorio contiene ejemplos ficticios, no credenciales.
-
-## Skills, en orden de trabajo
-
-| Skill | Para qué sirve |
+| Quiero… | Guía |
 | --- | --- |
-| `aidp-agent-bootstrap` | Preparar o reparar entorno, identidad y configuración |
-| `aidp-agent-flow-langgraph` | Diseñar, implementar y ajustar el agente |
-| `aidp-langgraph-test` | AIDP Agent Flow Test: aislar fallos y probar nodos, recorridos y comportamiento |
-| `aidp-runtime-credentials` | Inspeccionar y preparar Credential Store dentro del alcance autorizado |
-
-Las skills oficiales de LangChain/LangGraph se instalan por separado. El bootstrap comprueba cuáles necesita el caso; consulta los [prerrequisitos](docs/prerrequisitos.md#skills-oficiales-de-langchain).
-
-## Qué demuestra una prueba
-
-Un fixture aprobado demuestra las propiedades comprobadas con datos grabados. Una prueba con un modelo real demuestra ese caso con esa configuración. Una respuesta HTTP exitosa no demuestra que el agente resuelva la necesidad del usuario. La aceptación nativa TEST y la verificación de Agent Hub son etapas distintas.
-
-El informe por nodos conserva criterios, evidencia, revisión y exclusiones. El porcentaje corresponde a los criterios declarados y vigentes; no estima por sí solo cuánto falta de todo el producto.
-
-## Licencia y atribución
-
-[MIT](LICENSE), con los avisos de LangChain, Inc. y Joel Gangini conservados. Es una adaptación independiente: no es un plugin oficial ni una certificación de Oracle o LangChain. [Avisos de terceros](THIRD_PARTY_NOTICES.md).
+| Crear y comprobar mi primer agente | [Guía de uso](docs/guia-de-uso.md) |
+| Entender las etapas, responsabilidades y límites | [Arquitectura y flujo de desarrollo](docs/flujo-de-desarrollo.md) |
+| Diseñar preguntas y comprobar resultados | [Corpus y pruebas](docs/corpus-y-pruebas.md) |
+| Preparar acceso de OCI o consultar los comandos | [Prerrequisitos](docs/prerrequisitos.md) · [Referencia CLI](docs/referencia-cli.md) |
+| Mantener el paquete o consultar atribuciones | [Desarrollo del plugin](docs/desarrollo.md) · [Avisos de terceros](THIRD_PARTY_NOTICES.md) |

@@ -5,22 +5,19 @@ el resultado esperado y autoriza las operaciones; Codex implementa y diagnostica
 el motor ejecuta comprobaciones y conserva evidencia. Este es un recorrido de
 trabajo supervisado, no una automatización que garantice por sí sola calidad.
 
-```mermaid
-flowchart TD
-    A[Definir pregunta, fuentes y criterios] --> B[Diseñar factory, prompts y herramientas]
-    B --> C[Prueba local del nodo o recorrido afectado]
-    C --> D{Cumple el criterio?}
-    D -- No --> B
-    D -- Sí --> E[Revisar respuesta, decisiones y evidencia]
-    E --> F{Calidad aceptada?}
-    F -- No --> B
-    F -- Sí --> G[Verificar paquete y misma revisión en AIDP TEST]
-    G --> H{Aceptación nativa vigente?}
-    H -- No --> B
-    H -- Sí --> I[Publicar endpoint con autorización]
-    I --> J[Registrar y comprobar identidad en AI Registry]
-    J --> K[Probar conversación real en Agent Hub]
-```
+## Arquitectura del recorrido
+
+![Codex dirige el motor CLI, que guarda recibos locales y valida la revisión en AIDP TEST. La aceptación habilita la publicación autorizada en PROD, el registro en AI Registry y la comprobación en Agent Hub.](assets/aidp-agent-flow-architecture.png)
+
+El motor guarda los recibos como archivos en el proyecto local. AIDP TEST sirve la
+revisión candidata. Con la aceptación vigente y la autorización del operador,
+esa revisión puede publicarse en el endpoint PROD, registrarse en AI Registry y
+comprobarse mediante una conversación en Agent Hub.
+
+[Fuente editable de la arquitectura](diagrams/arquitectura-aidp.json) ·
+[Abrir la figura a tamaño completo](assets/aidp-agent-flow-architecture.png)
+
+## Flujo de trabajo
 
 [Diagrama interactivo](diagrams/flujo-desarrollo.html) ·
 [Fuente editable del diagrama](diagrams/flujo-desarrollo.json) ·
@@ -69,10 +66,11 @@ identificada. Sus resultados describen hechos compartidos y omitidos; no fijan u
 porcentaje universal que convierta una respuesta en correcta. Calibrar un juez con
 un conjunto finito tampoco certifica su precisión general.
 
-## Alcance del diagrama
+## Fuentes de los diagramas
 
-Las etapas resumen el tutorial y los contratos del motor. El HTML conserva fuentes
-vinculadas a una revisión del repositorio; el JSON permite editarlo con Archify.
+Las etapas resumen el tutorial y los contratos del motor. El HTML del flujo y el
+JSON de arquitectura vinculan sus fuentes a revisiones del repositorio. Ambos
+JSON son editables con Archify.
 El diagrama no representa una única orden que implemente, pruebe y publique sin
 intervención. La licencia del plugin es [MIT](../LICENSE); los componentes de
 terceros conservan sus avisos y licencias propios.

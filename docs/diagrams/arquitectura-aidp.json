@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Del desarrollo local a Agent Hub",
+    "locale": "es",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/jgangini/codex-plugin-oci-aidp-agent-flow-langgraph.git",
+      "revision": "35f448f1a63d7a828e384c3d780f429396c6eb7f"
+    }
+  },
+  "components": [
+    {
+      "id": "codex",
+      "type": "external",
+      "label": "Codex",
+      "sublabel": "Operador y skills",
+      "pos": [
+        42,
+        58
+      ],
+      "size": [
+        134,
+        66
+      ],
+      "sources": [
+        {
+          "path": "plugins/langchain-skills-codex/skills/aidp-agent-flow-langgraph/SKILL.md",
+          "line": 117,
+          "end_line": 128
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "backend",
+      "label": "Motor CLI",
+      "sublabel": "Proyecto y pruebas",
+      "pos": [
+        312,
+        58
+      ],
+      "size": [
+        162,
+        66
+      ],
+      "sources": [
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/cli.py",
+          "line": 360,
+          "end_line": 381
+        },
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/cli.py",
+          "line": 296,
+          "end_line": 320
+        }
+      ]
+    },
+    {
+      "id": "test",
+      "type": "cloud",
+      "label": "AIDP TEST",
+      "sublabel": "Revisión candidata",
+      "pos": [
+        656,
+        58
+      ],
+      "size": [
+        169,
+        66
+      ],
+      "sources": [
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/native_lifecycle.py",
+          "line": 769,
+          "end_line": 791
+        },
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/progress.py",
+          "line": 726,
+          "end_line": 750
+        }
+      ]
+    },
+    {
+      "id": "evidence",
+      "type": "database",
+      "label": "Evidencia local",
+      "sublabel": ".aidp-local",
+      "pos": [
+        312,
+        248
+      ],
+      "size": [
+        162,
+        66
+      ],
+      "sources": [
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/evaluation.py",
+          "line": 151,
+          "end_line": 166
+        },
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/progress.py",
+          "line": 739,
+          "end_line": 750
+        }
+      ]
+    },
+    {
+      "id": "prod",
+      "type": "cloud",
+      "label": "Endpoint PROD",
+      "sublabel": "Publicación autorizada",
+      "pos": [
+        656,
+        248
+      ],
+      "size": [
+        169,
+        66
+      ],
+      "sources": [
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/native_lifecycle.py",
+          "line": 769,
+          "end_line": 791
+        }
+      ]
+    },
+    {
+      "id": "registry",
+      "type": "cloud",
+      "label": "AI Registry",
+      "sublabel": "Identidad y versión",
+      "pos": [
+        996,
+        248
+      ],
+      "size": [
+        153,
+        66
+      ],
+      "sources": [
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/registry.py",
+          "line": 367,
+          "end_line": 385
+        },
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/registry.py",
+          "line": 412,
+          "end_line": 422
+        }
+      ]
+    },
+    {
+      "id": "hub",
+      "type": "frontend",
+      "label": "Agent Hub",
+      "sublabel": "Conversación en cliente",
+      "pos": [
+        996,
+        436
+      ],
+      "size": [
+        153,
+        66
+      ],
+      "sources": [
+        {
+          "path": "plugins/langchain-skills-codex/skills/aidp-agent-flow-langgraph/SKILL.md",
+          "line": 132,
+          "end_line": 143
+        },
+        {
+          "path": "plugins/langchain-skills-codex/scripts/aidp_agent_flow/registry.py",
+          "line": 379,
+          "end_line": 389
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "requests",
+      "from": "codex",
+      "to": "cli",
+      "label": "Ejecuta el caso",
+      "variant": "emphasis"
+    },
+    {
+      "id": "validate",
+      "from": "cli",
+      "to": "test",
+      "label": "Paquete e invocación",
+      "variant": "emphasis"
+    },
+    {
+      "id": "receipts",
+      "from": "cli",
+      "to": "evidence",
+      "label": "Guarda recibos"
+    },
+    {
+      "id": "approve",
+      "from": "test",
+      "to": "prod",
+      "label": "Aceptación vigente",
+      "variant": "security"
+    },
+    {
+      "id": "register",
+      "from": "prod",
+      "to": "registry",
+      "label": "Registro de versión"
+    },
+    {
+      "id": "portal",
+      "from": "registry",
+      "to": "hub",
+      "label": "Enlace al portal"
+    }
+  ]
+}

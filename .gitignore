@@ -19,3 +19,18 @@ validation-work/
 **/validation-work/
 .validation/
 *.log
+
+# Artefactos locales de documentación y desarrollo
+.sentruxignore
+.graphify/
+graphify-out/
+.graphifyignore
+.archify/
+.archifyignore
+AGENTS.md
+CLAUDE.md
+tmp/
+.codex/
+**/.github/workflows/
+**/.github/worflows/
+.vscode/
