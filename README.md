@@ -54,4 +54,4 @@ Para instalar desde la etiqueta publicada del plugin, añade `@v0.4.46` al nombr
 | Entender las etapas, responsabilidades y límites | [Arquitectura y flujo de desarrollo](docs/flujo-de-desarrollo.md) |
 | Diseñar preguntas y comprobar resultados | [Corpus y pruebas](docs/corpus-y-pruebas.md) |
 | Preparar acceso de OCI o consultar los comandos | [Prerrequisitos](docs/prerrequisitos.md) · [Referencia CLI](docs/referencia-cli.md) |
-| Mantener el paquete o consultar atribuciones | [Desarrollo del plugin](docs/desarrollo.md) · [Avisos de terceros](THIRD_PARTY_NOTICES.md) |
+| Mantener y validar el paquete | [Desarrollo del plugin](docs/desarrollo.md) |

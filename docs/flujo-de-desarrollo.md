@@ -10,9 +10,10 @@ trabajo supervisado, no una automatización que garantice por sí sola calidad.
 ![Codex dirige el motor CLI, que guarda recibos locales y valida la revisión en AIDP TEST. La aceptación habilita la publicación autorizada en PROD, el registro en AI Registry y la comprobación en Agent Hub.](assets/aidp-agent-flow-architecture.png)
 
 El motor guarda los recibos como archivos en el proyecto local. AIDP TEST sirve la
-revisión candidata. Con la aceptación vigente y la autorización del operador,
-esa revisión puede publicarse en el endpoint PROD, registrarse en AI Registry y
-comprobarse mediante una conversación en Agent Hub.
+revisión candidata. La flecha discontinua entre TEST y PROD señala el paso a producción. Para
+publicar se requiere la aceptación vigente de esa revisión y la autorización del operador.
+Después se registra la revisión en AI Registry y se comprueba con una
+conversación en Agent Hub.
 
 [Fuente editable de la arquitectura](diagrams/arquitectura-aidp.json) ·
 [Abrir la figura a tamaño completo](assets/aidp-agent-flow-architecture.png)

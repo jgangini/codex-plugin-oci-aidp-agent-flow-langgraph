@@ -50,3 +50,13 @@ uv build --wheel --out-dir "$Repo/.validation/dist" "$Repo/plugins/langchain-ski
 Ejecuta además el ejemplo inicial de la guía en un proyecto nuevo. Comprueba qué revisión y entorno produjo los recibos. Revisa los archivos que Git enviará: nunca deben incluir `.oci`, claves, entornos, resultados privados, enlaces internos o datos de proyectos reales.
 
 El plugin y el motor tienen versiones independientes: el manifiesto identifica las skills y el paquete; `pyproject.toml` y `aidp_agent_flow.__version__` deben coincidir para identificar el ejecutor. Una modificación funcional del ejecutor requiere una nueva versión de motor. Mantén las licencias y los avisos de terceros, describe las limitaciones vigentes en la guía correspondiente y publica un tag reproducible. Los controles locales no certifican un runtime Oracle ni reemplazan la aceptación de TEST y Agent Hub cuando cambia el comportamiento nativo.
+
+## Licencias de la distribución
+
+El plugin se distribuye bajo [MIT](../LICENSE). Las atribuciones y los avisos de
+marcas se incluyen en el [aviso del paquete](../plugins/langchain-skills-codex/THIRD_PARTY_NOTICES.md).
+Las skills oficiales de LangChain se instalan por separado y conservan sus
+propias licencias.
+
+El [diagrama interactivo](diagrams/flujo-desarrollo.html) incorpora el runtime de
+[Archify](https://github.com/tt-a1i/archify), con su [licencia Apache-2.0](diagrams/LICENSE-Archify.txt).

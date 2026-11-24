@@ -8,6 +8,26 @@
     "repository": {
       "url": "https://github.com/jgangini/codex-plugin-oci-aidp-agent-flow-langgraph.git",
       "revision": "35f448f1a63d7a828e384c3d780f429396c6eb7f"
+    },
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": {
+          "label": "Portal"
+        },
+        "backend": {
+          "label": "Motor local"
+        },
+        "database": {
+          "label": "Recibos locales"
+        },
+        "cloud": {
+          "label": "Servicios de AIDP"
+        },
+        "external": {
+          "label": "Entorno de desarrollo"
+        }
+      }
     }
   },
   "components": [
@@ -17,8 +37,8 @@
       "label": "Codex",
       "sublabel": "Operador y skills",
       "pos": [
-        42,
-        58
+        40,
+        48
       ],
       "size": [
         134,
@@ -30,7 +50,8 @@
           "line": 117,
           "end_line": 128
         }
-      ]
+      ],
+      "icon": "external"
     },
     {
       "id": "cli",
@@ -38,8 +59,8 @@
       "label": "Motor CLI",
       "sublabel": "Proyecto y pruebas",
       "pos": [
-        312,
-        58
+        264,
+        48
       ],
       "size": [
         162,
@@ -56,7 +77,8 @@
           "line": 296,
           "end_line": 320
         }
-      ]
+      ],
+      "icon": "backend"
     },
     {
       "id": "test",
@@ -64,8 +86,8 @@
       "label": "AIDP TEST",
       "sublabel": "Revisión candidata",
       "pos": [
-        656,
-        58
+        565,
+        48
       ],
       "size": [
         169,
@@ -82,7 +104,8 @@
           "line": 726,
           "end_line": 750
         }
-      ]
+      ],
+      "icon": "decision"
     },
     {
       "id": "evidence",
@@ -90,8 +113,8 @@
       "label": "Evidencia local",
       "sublabel": ".aidp-local",
       "pos": [
-        312,
-        248
+        264,
+        184
       ],
       "size": [
         162,
@@ -108,7 +131,8 @@
           "line": 739,
           "end_line": 750
         }
-      ]
+      ],
+      "icon": "briefcase"
     },
     {
       "id": "prod",
@@ -116,8 +140,8 @@
       "label": "Endpoint PROD",
       "sublabel": "Publicación autorizada",
       "pos": [
-        656,
-        248
+        565,
+        184
       ],
       "size": [
         169,
@@ -129,7 +153,8 @@
           "line": 769,
           "end_line": 791
         }
-      ]
+      ],
+      "icon": "cloud"
     },
     {
       "id": "registry",
@@ -137,8 +162,8 @@
       "label": "AI Registry",
       "sublabel": "Identidad y versión",
       "pos": [
-        996,
-        248
+        857,
+        184
       ],
       "size": [
         153,
@@ -155,7 +180,8 @@
           "line": 412,
           "end_line": 422
         }
-      ]
+      ],
+      "icon": "flag"
     },
     {
       "id": "hub",
@@ -163,8 +189,8 @@
       "label": "Agent Hub",
       "sublabel": "Conversación en cliente",
       "pos": [
-        996,
-        436
+        857,
+        320
       ],
       "size": [
         153,
@@ -181,7 +207,8 @@
           "line": 379,
           "end_line": 389
         }
-      ]
+      ],
+      "icon": "frontend"
     }
   ],
   "connections": [
